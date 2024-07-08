@@ -1,0 +1,11 @@
+[package]
+name = "schnorr-rs"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+num-bigint = { version = "0.4.6", features = ["rand", "serde"] }
+serde = { version = "1.0.203", features = ["derive"] }
+rand = "0.8.5"
+p256 = "0.13.2"
