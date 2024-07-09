@@ -17,7 +17,7 @@ crate-type = ["rlib", "cdylib"]
 num-bigint = { version = "0.4.6", features = ["rand", "serde"] }
 serde = { version = "1.0.203", features = ["derive"] }
 rand = "0.8.5"
-getrandom = "*"
+getrandom = "0.2"
 p256 = { version = "0.13.2", features = ["serde"]}
 
 [features]
