@@ -1,6 +1,12 @@
 [package]
 name = "schnorr-rs"
 version = "0.1.0"
+description = "Schnorr Protocols"
+authors = ["alvin.cpp@gmail.com"]
+license = "Apache-2.0"
+repository = "https://github.com/AlvinHon/schnorr"
+categories = ["cryptography"]
+keywords = ["cryptography", "signature", "identification", "schnorr"]
 edition = "2021"
 resolver = "2"
 
