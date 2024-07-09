@@ -1,6 +1,7 @@
 //! Implementation of Schnorr Signature Scheme (based on discrete logarithm problem)
 
 use num_bigint::BigUint;
+use serde::{Deserialize, Serialize};
 
 use crate::{Hash, Rand, SchnorrGroup};
 
@@ -13,6 +14,7 @@ use crate::{Hash, Rand, SchnorrGroup};
 /// 4. The signature is (s, e).
 /// 5. Verify the signature by calculating r_v = a^s * p^e mod p and e_v = H(r || p || m). If e_v == e, then the signature is valid.
 ///
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SignatureScheme<H: Hash> {
     group: SchnorrGroup,
     _phantom: std::marker::PhantomData<H>,
@@ -92,16 +94,19 @@ impl<H: Hash> SignatureScheme<H> {
 }
 
 /// Signing key for the Schnorr Signature Scheme.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PublicKey {
     p: BigUint,
 }
 
 /// Public key for the Schnorr Signature Scheme.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SigningKey {
     d: BigUint,
 }
 
 /// Signature for the Schnorr Signature Scheme.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Signature {
     s: BigUint,
     e: BigUint,
