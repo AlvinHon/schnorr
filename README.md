@@ -19,13 +19,13 @@ The protocol involves `user`, `issuer` and `verifier`, who share the same parame
 ```rust
 // user interacts with issuer to get a certificate
 let (iss_secret, iss_params) = schnorr.issue_params::<Rand>(i.clone());
-let cert = schnorr.issue_certificate(iss_params);
+let cert = schnorr.issue_certificate(&sig_scheme, iss_params);
 
 // user presents the certificate to the verifier
 let (ver_secret, ver_req) = schnorr.verification_request::<Rand>(cert);
 // verifier challenges the user's knowledge of the secret
 let challenge = schnorr
-    .verification_challenge::<Rand>(ver_req.clone())
+    .verification_challenge::<Rand>(&sig_scheme, ver_req.clone())
     .unwrap();
 // user responds to the challenge
 let ver_res = schnorr.verification_response(challenge.clone(), iss_secret, ver_secret);
