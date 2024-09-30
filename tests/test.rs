@@ -1,6 +1,8 @@
 use num_bigint::{BigUint, RandBigInt};
 
-use schnorr_rs::{Hash, Identification, Rand, Sig, SignatureScheme, SignatureSchemeECP256};
+use schnorr_rs::{
+    Hash, Identification, Rand, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
+};
 
 struct TestHash;
 impl Hash for TestHash {
@@ -9,14 +11,32 @@ impl Hash for TestHash {
     }
 }
 
-struct TestSig;
-impl Sig for TestSig {
-    fn sign<T: AsRef<[u8]>>(value: T) -> Vec<u8> {
-        value.as_ref().to_vec()
+struct TestSig {
+    signature_scheme: SignatureSchemeECP256<TestHash>,
+    public_key: schnorr_rs::ec::PublicKey,
+    signing_key: schnorr_rs::ec::SigningKey,
+}
+
+impl SignatureInIdentification for TestSig {
+    fn sign<T: AsRef<[u8]>>(&self, value: T) -> Vec<u8> {
+        self.signature_scheme
+            .sign(
+                &mut rand::thread_rng(),
+                &self.signing_key,
+                &self.public_key,
+                value.as_ref(),
+            )
+            .into()
     }
 
-    fn verify<T: AsRef<[u8]>>(value: T, signature: &[u8]) -> bool {
-        value.as_ref() == signature
+    fn verify<T: AsRef<[u8]>>(&self, value: T, signature: &[u8]) -> bool {
+        match schnorr_rs::ec::Signature::try_from(signature) {
+            Ok(signature) => {
+                self.signature_scheme
+                    .verify(&self.public_key, value.as_ref(), &signature)
+            }
+            Err(_) => false,
+        }
     }
 }
 
@@ -38,17 +58,27 @@ fn test_schnorr_identification_protocol() {
             "144213202463066458950689095305115948799436864106778035179311009761777898846700415257265179855055640783875383274707858827879036088093691306491953244054442062637113833957623609837630797581860524549453053884680615629934658560796659252072641537163117203253862736053101508959059343335640009185013786003173143740486",
         )
         .unwrap();
+
+    let sig = {
+        let signature_scheme = SignatureSchemeECP256::<TestHash>::new();
+        let (signing_key, public_key) = signature_scheme.generate_key(&mut rand::thread_rng());
+        TestSig {
+            signature_scheme,
+            public_key,
+            signing_key,
+        }
+    };
     let i = BigUint::from(123u32);
 
     // user interacts with issuer to get a certificate
     let (iss_secret, iss_params) = schnorr.issue_params::<TestRand>(i.clone());
-    let cert = schnorr.issue_certificate(iss_params);
+    let cert = schnorr.issue_certificate(&sig, iss_params);
 
     // user presents the certificate to the verifier
     let (ver_secret, ver_req) = schnorr.verification_request::<TestRand>(cert);
     // verifier challenges the user's knowledge of the secret
     let challenge = schnorr
-        .verification_challenge::<TestRand>(ver_req.clone())
+        .verification_challenge::<TestRand>(&sig, ver_req.clone())
         .unwrap();
     // user responds to the challenge
     let ver_res = schnorr.verification_response(challenge.clone(), iss_secret, ver_secret);

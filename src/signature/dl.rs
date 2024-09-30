@@ -94,9 +94,37 @@ impl<H: Hash> SignatureScheme<H> {
 }
 
 /// Signing key for the Schnorr Signature Scheme.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
     p: BigUint,
+}
+
+impl From<PublicKey> for Vec<u8> {
+    fn from(public_key: PublicKey) -> Self {
+        let p_bytes = public_key.p.to_bytes_le();
+        let p_bytes_len = p_bytes.len();
+        [(p_bytes_len as u32).to_le_bytes().to_vec(), p_bytes].concat()
+    }
+}
+
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() < 4 {
+            return Err(());
+        }
+
+        let p_len = u32::from_le_bytes(value[..4].try_into().unwrap()) as usize;
+
+        if value.len() != 4 + p_len {
+            return Err(());
+        }
+
+        let p_bytes = &value[4..];
+        let p = BigUint::from_bytes_le(p_bytes);
+        Ok(PublicKey { p })
+    }
 }
 
 /// Public key for the Schnorr Signature Scheme.
@@ -105,9 +133,82 @@ pub struct SigningKey {
     d: BigUint,
 }
 
+impl From<SigningKey> for Vec<u8> {
+    fn from(signing_key: SigningKey) -> Self {
+        let d_bytes = signing_key.d.to_bytes_le();
+        let d_bytes_len = d_bytes.len();
+        [(d_bytes_len as u32).to_le_bytes().to_vec(), d_bytes].concat()
+    }
+}
+
+impl TryFrom<&[u8]> for SigningKey {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() < 4 {
+            return Err(());
+        }
+
+        let d_len = u32::from_le_bytes(value[..4].try_into().unwrap()) as usize;
+
+        if value.len() != 4 + d_len {
+            return Err(());
+        }
+
+        let d_bytes = &value[4..];
+        let d = BigUint::from_bytes_le(d_bytes);
+        Ok(SigningKey { d })
+    }
+}
+
 /// Signature for the Schnorr Signature Scheme.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Signature {
     s: BigUint,
     e: BigUint,
+}
+
+impl From<Signature> for Vec<u8> {
+    fn from(signature: Signature) -> Self {
+        let s_bytes = signature.s.to_bytes_le();
+        let e_bytes = signature.e.to_bytes_le();
+        let s_bytes_len = s_bytes.len();
+        let e_bytes_len = e_bytes.len();
+        [
+            (s_bytes_len as u32).to_le_bytes().to_vec(),
+            s_bytes,
+            (e_bytes_len as u32).to_le_bytes().to_vec(),
+            e_bytes,
+        ]
+        .concat()
+    }
+}
+
+impl TryFrom<&[u8]> for Signature {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() < 4 {
+            return Err(());
+        }
+
+        let s_len = u32::from_le_bytes(value[..4].try_into().unwrap()) as usize;
+
+        if value.len() < 8 + s_len {
+            return Err(());
+        }
+
+        let e_len = u32::from_le_bytes(value[4 + s_len..8 + s_len].try_into().unwrap()) as usize;
+
+        if value.len() != 8 + s_len + e_len {
+            return Err(());
+        }
+
+        let s_bytes = &value[4..4 + s_len];
+        let e_bytes = &value[8 + s_len..];
+
+        let s = BigUint::from_bytes_le(s_bytes);
+        let e = BigUint::from_bytes_le(e_bytes);
+        Ok(Signature { s, e })
+    }
 }

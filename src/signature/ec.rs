@@ -1,8 +1,10 @@
 //! Implementation of Schnorr Signature Scheme (a varient scheme by using elliptic curve cryptography)
 
 use crate::Hash;
-use p256::elliptic_curve::point::AffineCoordinates;
-use p256::elliptic_curve::Group;
+use p256::{
+    elliptic_curve::{point::AffineCoordinates, Group, PrimeField},
+    FieldBytes, NistP256,
+};
 use serde::{Deserialize, Serialize};
 use std::ops::{Mul, Neg};
 
@@ -101,9 +103,32 @@ impl<H: Hash> SignatureScheme<H> {
 }
 
 /// Public key used to verify a signature.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
     p: p256::AffinePoint,
+}
+
+impl From<PublicKey> for Vec<u8> {
+    fn from(key: PublicKey) -> Self {
+        use p256::elliptic_curve::sec1::ToEncodedPoint;
+        key.p.to_encoded_point(false).as_bytes().to_vec()
+    }
+}
+
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        use p256::elliptic_curve::sec1::FromEncodedPoint;
+        p256::elliptic_curve::sec1::EncodedPoint::<NistP256>::from_bytes(value)
+            .map_err(|_| ())
+            .and_then(|p| {
+                p256::AffinePoint::from_encoded_point(&p)
+                    .into_option()
+                    .ok_or(())
+            })
+            .map(|p| PublicKey { p })
+    }
 }
 
 /// Signing key used to sign a message.
@@ -112,9 +137,54 @@ pub struct SigningKey {
     d: p256::NonZeroScalar,
 }
 
+impl From<SigningKey> for Vec<u8> {
+    fn from(key: SigningKey) -> Self {
+        key.d.to_bytes().as_slice().to_vec()
+    }
+}
+
+impl TryFrom<&[u8]> for SigningKey {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let d_bytes = FieldBytes::from_slice(value);
+        let d = p256::NonZeroScalar::from_repr(*d_bytes)
+            .into_option()
+            .ok_or(())?;
+        Ok(SigningKey { d })
+    }
+}
+
 /// Signature used to verify a message.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Signature {
     e: p256::Scalar,
     s: p256::Scalar,
+}
+
+impl From<Signature> for Vec<u8> {
+    fn from(signature: Signature) -> Self {
+        [
+            signature.e.to_bytes().as_slice(),
+            signature.s.to_bytes().as_slice(),
+        ]
+        .concat()
+    }
+}
+
+impl TryFrom<&[u8]> for Signature {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() != 64 {
+            return Err(());
+        }
+
+        let e_bytes = FieldBytes::from_slice(&value[..32]);
+        let s_bytes = FieldBytes::from_slice(&value[32..]);
+
+        let e = p256::Scalar::from_repr(*e_bytes).into_option().ok_or(())?;
+        let s = p256::Scalar::from_repr(*s_bytes).into_option().ok_or(())?;
+        Ok(Signature { e, s })
+    }
 }

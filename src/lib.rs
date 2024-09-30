@@ -25,9 +25,9 @@ pub trait Hash {
 }
 
 /// Signature trait for Schnorr Identification Protocol.
-pub trait Sig {
-    fn sign<T: AsRef<[u8]>>(value: T) -> Vec<u8>;
-    fn verify<T: AsRef<[u8]>>(value: T, signature: &[u8]) -> bool;
+pub trait SignatureInIdentification {
+    fn sign<T: AsRef<[u8]>>(&self, value: T) -> Vec<u8>;
+    fn verify<T: AsRef<[u8]>>(&self, value: T, signature: &[u8]) -> bool;
 }
 
 /// Random number generator trait for Schnorr Protocols.

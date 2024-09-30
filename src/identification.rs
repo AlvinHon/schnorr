@@ -3,7 +3,7 @@
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
-use crate::{Hash, Identity, Rand, SchnorrGroup, Sig};
+use crate::{Hash, Identity, Rand, SchnorrGroup, SignatureInIdentification};
 
 /// Schnorr Identification Protocol implementation with generic hash and signature schemes.
 ///
@@ -15,9 +15,9 @@ use crate::{Hash, Identity, Rand, SchnorrGroup, Sig};
 /// 5. Verification response: Calculate p = k + r * e mod q.
 /// 6. Verification: Verify if y == a^p * v^r mod p.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Identification<H: Hash, S: Sig>
+pub struct Identification<H: Hash, S: SignatureInIdentification>
 where
-    S: Sig,
+    S: SignatureInIdentification,
     H: Hash,
 {
     group: SchnorrGroup,
@@ -26,7 +26,7 @@ where
 
 impl<H, S> Identification<H, S>
 where
-    S: Sig,
+    S: SignatureInIdentification,
     H: Hash,
 {
     /// Create a Schnorr Identification Protocol from string representation of p, q, and a,
@@ -60,9 +60,13 @@ where
     /// Sign the hash of the concatenation of i and v.
     /// Return the issue certificate.
     /// The issue certificate is used to create a verification request (by calling [Identification::verification_request]).
-    pub fn issue_certificate(&self, issue_params: IssueParams) -> IssueCertificate {
+    pub fn issue_certificate(
+        &self,
+        signature_scheme: &S,
+        issue_params: IssueParams,
+    ) -> IssueCertificate {
         // s = sign(H(i || v))
-        let s = S::sign(H::hash(
+        let s = signature_scheme.sign(H::hash(
             [issue_params.i.to_bytes_le(), issue_params.v.to_bytes_le()].concat(),
         ));
 
@@ -99,10 +103,11 @@ where
     /// The verification challenge is used to create a verification response (by calling [Identification::verification_response]).
     pub fn verification_challenge<R: Rand>(
         &self,
+        signature_scheme: &S,
         request: VerificationRequest,
     ) -> Option<VerificationChallenge> {
         // verify signature: s == sign(H(i || v))
-        if !S::verify(
+        if !signature_scheme.verify(
             H::hash(
                 [
                     request.certificate.params.i.to_bytes_le(),
