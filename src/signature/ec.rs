@@ -25,10 +25,8 @@ pub struct SignatureScheme<H: Hash> {
 
 impl<H: Hash> SignatureScheme<H> {
     pub fn new() -> Self {
-        let g = p256::ProjectivePoint::generator().to_affine();
-
         Self {
-            g,
+            g: p256::ProjectivePoint::generator().to_affine(),
             _phantom: std::marker::PhantomData,
         }
     }
