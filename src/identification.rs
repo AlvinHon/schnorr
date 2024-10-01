@@ -165,6 +165,7 @@ where
 }
 
 /// Issue secret for identification protocol.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct IssueSecret {
     e: BigUint,
 }
@@ -184,6 +185,7 @@ pub struct IssueCertificate {
 }
 
 /// Verification request secret for identification protocol.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct VerificationRequestSecret {
     k: BigUint,
 }

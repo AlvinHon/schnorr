@@ -2,15 +2,29 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use num_bigint::{BigUint, RandBigInt};
-use schnorr_rs::{SignatureScheme, SignatureSchemeECP256};
+use schnorr_rs::{
+    Identification, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
+};
 use sha2::{Digest, Sha256};
 
-criterion_main!(signature_scheme,);
+criterion_main!(signature_scheme, identification_protocol);
 
 criterion_group! {
     name = signature_scheme;
     config = Criterion::default().sample_size(20).measurement_time(Duration::from_secs(3));
     targets = bench_signature_with_dl, bench_signature_with_ec
+}
+
+criterion_group! {
+    name = identification_protocol;
+    config = Criterion::default().sample_size(10).measurement_time(Duration::from_secs(1));
+    targets =
+        bench_identification_issue_params,
+        bench_identification_issue_certificate,
+        bench_identification_verification_request,
+        bench_identification_verification_challenge,
+        bench_identification_verification_response,
+        bench_identification_verification
 }
 
 fn bench_signature_with_dl(c: &mut Criterion) {
@@ -73,6 +87,98 @@ fn bench_signature_with_ec(c: &mut Criterion) {
     });
 }
 
+fn bench_identification_issue_params(c: &mut Criterion) {
+    let (protocol, _, i) = setup_for_identification_tests();
+
+    c.bench_function("identification_issue_params", |b| {
+        b.iter(|| {
+            protocol.issue_params::<TestRand>(i.clone());
+        });
+    });
+}
+
+fn bench_identification_issue_certificate(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_tests();
+
+    let (_, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+    c.bench_function("identification_issue_certificate", |b| {
+        b.iter(|| {
+            protocol.issue_certificate(&sig, iss_params.clone());
+        });
+    });
+}
+
+fn bench_identification_verification_request(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_tests();
+
+    let cert = {
+        let (_, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+        protocol.issue_certificate(&sig, iss_params)
+    };
+
+    c.bench_function("identification_verification_request", |b| {
+        b.iter(|| {
+            protocol.verification_request::<TestRand>(cert.clone());
+        });
+    });
+}
+
+fn bench_identification_verification_challenge(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_tests();
+
+    let cert = {
+        let (_, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+        protocol.issue_certificate(&sig, iss_params)
+    };
+
+    let (_, ver_req) = protocol.verification_request::<TestRand>(cert.clone());
+    c.bench_function("identification_verification_challenge", |b| {
+        b.iter(|| {
+            protocol.verification_challenge::<TestRand>(&sig, ver_req.clone());
+        });
+    });
+}
+
+fn bench_identification_verification_response(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_tests();
+
+    let (iss_secret, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+    let cert = protocol.issue_certificate(&sig, iss_params);
+
+    let (ver_secret, ver_req) = protocol.verification_request::<TestRand>(cert.clone());
+    let challenge = protocol
+        .verification_challenge::<TestRand>(&sig, ver_req.clone())
+        .unwrap();
+    c.bench_function("identification_verification_response", |b| {
+        b.iter(|| {
+            protocol.verification_response(
+                challenge.clone(),
+                iss_secret.clone(),
+                ver_secret.clone(),
+            );
+        });
+    });
+}
+
+fn bench_identification_verification(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_tests();
+
+    let (iss_secret, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+    let cert = protocol.issue_certificate(&sig, iss_params);
+
+    let (ver_secret, ver_req) = protocol.verification_request::<TestRand>(cert.clone());
+    let challenge = protocol
+        .verification_challenge::<TestRand>(&sig, ver_req.clone())
+        .unwrap();
+    let response =
+        protocol.verification_response(challenge.clone(), iss_secret.clone(), ver_secret.clone());
+    c.bench_function("identification_verification", |b| {
+        b.iter(|| {
+            protocol.verification(ver_req.clone(), challenge.clone(), response.clone());
+        });
+    });
+}
+
 // Helper structs and functions for testing
 
 struct TestHash;
@@ -85,6 +191,35 @@ impl schnorr_rs::Hash for TestHash {
     }
 }
 
+struct TestSig {
+    signature_scheme: SignatureSchemeECP256<TestHash>,
+    public_key: schnorr_rs::ec::PublicKey,
+    signing_key: schnorr_rs::ec::SigningKey,
+}
+
+impl SignatureInIdentification for TestSig {
+    fn sign<T: AsRef<[u8]>>(&self, value: T) -> Vec<u8> {
+        self.signature_scheme
+            .sign(
+                &mut rand::thread_rng(),
+                &self.signing_key,
+                &self.public_key,
+                value.as_ref(),
+            )
+            .into()
+    }
+
+    fn verify<T: AsRef<[u8]>>(&self, value: T, signature: &[u8]) -> bool {
+        match schnorr_rs::ec::Signature::try_from(signature) {
+            Ok(signature) => {
+                self.signature_scheme
+                    .verify(&self.public_key, value.as_ref(), &signature)
+            }
+            Err(_) => false,
+        }
+    }
+}
+
 struct TestRand;
 
 impl schnorr_rs::Rand for TestRand {
@@ -92,4 +227,37 @@ impl schnorr_rs::Rand for TestRand {
         let mut rng = rand::thread_rng();
         rng.gen_biguint_range(&BigUint::ZERO, module)
     }
+}
+
+fn setup_for_identification_tests() -> (Identification<TestHash, TestSig>, TestSig, BigUint) {
+    let protocol = Identification::<TestHash, TestSig>::from_str(
+        "170635838606142236835668582024526088839118584923917947104881361096573663241835425726334688227245750988284470206339098086628427330905070264154820140913414479495481939755079707182465802484020944276739164978360438985178968038653749024959908959885446602817557541340750337331201115159158715982367397805202392369959",
+        "85317919303071118417834291012263044419559292461958973552440680548286831620917712863167344113622875494142235103169549043314213665452535132077410070456707239747740969877539853591232901242010472138369582489180219492589484019326874512479954479942723301408778770670375168665600557579579357991183698902601196184979",
+        "144213202463066458950689095305115948799436864106778035179311009761777898846700415257265179855055640783875383274707858827879036088093691306491953244054442062637113833957623609837630797581860524549453053884680615629934658560796659252072641537163117203253862736053101508959059343335640009185013786003173143740486",
+    )
+    .unwrap();
+
+    let sig = {
+        let signature_scheme = SignatureSchemeECP256::<TestHash>::new();
+
+        let public_key = bincode::deserialize::<schnorr_rs::ec::PublicKey>(&[
+            33, 0, 0, 0, 0, 0, 0, 0, 3, 245, 117, 253, 38, 220, 148, 189, 244, 2, 157, 25, 124, 84,
+            226, 137, 208, 121, 144, 154, 210, 231, 60, 194, 154, 51, 39, 132, 139, 244, 135, 173,
+            153,
+        ])
+        .unwrap();
+        let signing_key = bincode::deserialize::<schnorr_rs::ec::SigningKey>(&[
+            45, 233, 160, 91, 10, 171, 188, 116, 44, 21, 59, 221, 31, 198, 0, 197, 53, 10, 232,
+            246, 112, 116, 45, 175, 47, 197, 139, 125, 115, 52, 211, 12,
+        ])
+        .unwrap();
+        TestSig {
+            signature_scheme,
+            public_key,
+            signing_key,
+        }
+    };
+    let i = BigUint::from(123u32);
+
+    (protocol, sig, i)
 }
