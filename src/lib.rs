@@ -30,11 +30,6 @@ pub trait SignatureInIdentification {
     fn verify<T: AsRef<[u8]>>(&self, value: T, signature: &[u8]) -> bool;
 }
 
-/// Random number generator trait for Schnorr Protocols.
-pub trait Rand {
-    fn random_number(module: &BigUint) -> BigUint;
-}
-
 pub type Identity = BigUint;
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -1,9 +1,9 @@
 //! Implementation of Schnorr Signature Scheme (based on discrete logarithm problem)
 
-use num_bigint::BigUint;
+use num_bigint::{BigUint, RandBigInt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Hash, Rand, SchnorrGroup};
+use crate::{Hash, SchnorrGroup};
 
 /// Schnorr Signature Scheme based on discrete logarithm problem.
 ///
@@ -35,9 +35,9 @@ impl<H: Hash> SignatureScheme<H> {
     /// Return the signing key and public key.
     /// The signing key is used to sign a message (by calling [SignatureScheme::sign]),
     /// while the public key is used to verify the signature (by calling [SignatureScheme::verify]).
-    pub fn generate_key<R: Rand>(&self) -> (SigningKey, PublicKey) {
+    pub fn generate_key<R: rand::RngCore>(&self, rng: &mut R) -> (SigningKey, PublicKey) {
         // p = a^(-d) mod p
-        let d = R::random_number(&self.group.q);
+        let d = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
         let p = self
             .group
             .a
@@ -53,13 +53,14 @@ impl<H: Hash> SignatureScheme<H> {
     ///
     /// Return the signature (s, e).
     /// The signature is used to verify the message (by calling [SignatureScheme::verify]).
-    pub fn sign<R: Rand, M: AsRef<[u8]>>(
+    pub fn sign<R: rand::RngCore, M: AsRef<[u8]>>(
         &self,
+        rng: &mut R,
         key: &SigningKey,
         pub_key: &PublicKey,
         message: M,
     ) -> Signature {
-        let k = R::random_number(&self.group.q);
+        let k = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
         // r = a^k mod p
         let r = self.group.a.modpow(&k, &self.group.p);
         // e = H(r || p || m) // Modification on original scheme: adding p to prevent existential forgery

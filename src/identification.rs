@@ -1,9 +1,9 @@
 //! Implementation of Schnorr Identification Protocol
 
-use num_bigint::BigUint;
+use num_bigint::{BigUint, RandBigInt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Hash, Identity, Rand, SchnorrGroup, SignatureInIdentification};
+use crate::{Hash, Identity, SchnorrGroup, SignatureInIdentification};
 
 /// Schnorr Identification Protocol implementation with generic hash and signature schemes.
 ///
@@ -44,8 +44,12 @@ where
     /// Return the issue secret and issue parameters.
     /// The issue secret is used to calculate the verification response (by calling [Identification::verification_response]),
     /// while the issue parameters are used to create a certificate (by calling [Identification::issue_certificate]).
-    pub fn issue_params<R: Rand>(&self, i: Identity) -> (IssueSecret, IssueParams) {
-        let e = R::random_number(&self.group.q);
+    pub fn issue_params<R: rand::RngCore>(
+        &self,
+        rng: &mut R,
+        i: Identity,
+    ) -> (IssueSecret, IssueParams) {
+        let e = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
         // v = a^(-e) mod p
         let v = self
             .group
@@ -81,11 +85,12 @@ where
     /// Return the verification request secret and the verification request.
     /// The verification request secret is used to calculate the verification response (by calling [Identification::verification_response]),
     /// while the verification request is used to create a verification challenge (by calling [Identification::verification_challenge]).
-    pub fn verification_request<R: Rand>(
+    pub fn verification_request<R: rand::RngCore>(
         &self,
+        rng: &mut R,
         certificate: IssueCertificate,
     ) -> (VerificationRequestSecret, VerificationRequest) {
-        let k = R::random_number(&self.group.q);
+        let k = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
         // y = a^k mod p
         let y = self.group.a.modpow(&k, &self.group.p);
 
@@ -101,8 +106,9 @@ where
     /// (by calling [Identification::verification_response]).
     /// Return None if the signature is invalid.
     /// The verification challenge is used to create a verification response (by calling [Identification::verification_response]).
-    pub fn verification_challenge<R: Rand>(
+    pub fn verification_challenge<R: rand::RngCore>(
         &self,
+        rng: &mut R,
         signature_scheme: &S,
         request: VerificationRequest,
     ) -> Option<VerificationChallenge> {
@@ -121,7 +127,7 @@ where
         }
 
         Some(VerificationChallenge {
-            r: R::random_number(&self.group.q),
+            r: rng.gen_biguint_range(&BigUint::ZERO, &self.group.q),
         })
     }
 

@@ -1,7 +1,7 @@
-use num_bigint::{BigUint, RandBigInt};
+use num_bigint::BigUint;
 
 use schnorr_rs::{
-    Hash, Identification, Rand, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
+    Hash, Identification, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
 };
 
 struct TestHash;
@@ -40,14 +40,6 @@ impl SignatureInIdentification for TestSig {
     }
 }
 
-struct TestRand;
-impl Rand for TestRand {
-    fn random_number(module: &BigUint) -> BigUint {
-        let mut rng = rand::thread_rng();
-        rng.gen_biguint_range(&BigUint::ZERO, module)
-    }
-}
-
 /// Test Schnorr Identification Protocol
 #[test]
 fn test_schnorr_identification_protocol() {
@@ -69,16 +61,17 @@ fn test_schnorr_identification_protocol() {
         }
     };
     let i = BigUint::from(123u32);
+    let mut rng = rand::thread_rng();
 
     // user interacts with issuer to get a certificate
-    let (iss_secret, iss_params) = schnorr.issue_params::<TestRand>(i.clone());
+    let (iss_secret, iss_params) = schnorr.issue_params(&mut rng, i.clone());
     let cert = schnorr.issue_certificate(&sig, iss_params);
 
     // user presents the certificate to the verifier
-    let (ver_secret, ver_req) = schnorr.verification_request::<TestRand>(cert);
+    let (ver_secret, ver_req) = schnorr.verification_request(&mut rng, cert);
     // verifier challenges the user's knowledge of the secret
     let challenge = schnorr
-        .verification_challenge::<TestRand>(&sig, ver_req.clone())
+        .verification_challenge(&mut rng, &sig, ver_req.clone())
         .unwrap();
     // user responds to the challenge
     let ver_res = schnorr.verification_response(challenge.clone(), iss_secret, ver_secret);
@@ -94,10 +87,11 @@ fn test_signature_scheme() {
         "144213202463066458950689095305115948799436864106778035179311009761777898846700415257265179855055640783875383274707858827879036088093691306491953244054442062637113833957623609837630797581860524549453053884680615629934658560796659252072641537163117203253862736053101508959059343335640009185013786003173143740486",
     )
     .unwrap();
+    let mut rng = rand::thread_rng();
 
-    let (key, public_key) = scheme.generate_key::<TestRand>();
+    let (key, public_key) = scheme.generate_key(&mut rng);
     let message = "hello world".as_bytes();
-    let signature = scheme.sign::<TestRand, _>(&key, &public_key, message);
+    let signature = scheme.sign(&mut rng, &key, &public_key, message);
     assert!(scheme.verify(&public_key, message, &signature));
 }
 

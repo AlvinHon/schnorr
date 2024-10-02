@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use num_bigint::{BigUint, RandBigInt};
+use num_bigint::BigUint;
 use schnorr_rs::{
     Identification, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
 };
@@ -56,10 +56,11 @@ fn bench_signature_with_dl(c: &mut Criterion) {
     ])
     .unwrap();
     let message = "Hello, world!";
+    let mut rng = rand::thread_rng();
 
     c.bench_function("signature_with_dl", |b| {
         b.iter(|| {
-            signature_scheme.sign::<TestRand, _>(&signing_key, &public_key, message);
+            signature_scheme.sign(&mut rng, &signing_key, &public_key, message);
         })
     });
 }
@@ -89,18 +90,20 @@ fn bench_signature_with_ec(c: &mut Criterion) {
 
 fn bench_identification_issue_params(c: &mut Criterion) {
     let (protocol, _, i) = setup_for_identification_tests();
+    let mut rng = rand::thread_rng();
 
     c.bench_function("identification_issue_params", |b| {
         b.iter(|| {
-            protocol.issue_params::<TestRand>(i.clone());
+            protocol.issue_params(&mut rng, i.clone());
         });
     });
 }
 
 fn bench_identification_issue_certificate(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
+    let mut rng = rand::thread_rng();
 
-    let (_, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+    let (_, iss_params) = protocol.issue_params(&mut rng, i.clone());
     c.bench_function("identification_issue_certificate", |b| {
         b.iter(|| {
             protocol.issue_certificate(&sig, iss_params.clone());
@@ -110,44 +113,47 @@ fn bench_identification_issue_certificate(c: &mut Criterion) {
 
 fn bench_identification_verification_request(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
+    let mut rng = rand::thread_rng();
 
     let cert = {
-        let (_, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+        let (_, iss_params) = protocol.issue_params(&mut rng, i.clone());
         protocol.issue_certificate(&sig, iss_params)
     };
 
     c.bench_function("identification_verification_request", |b| {
         b.iter(|| {
-            protocol.verification_request::<TestRand>(cert.clone());
+            protocol.verification_request(&mut rng, cert.clone());
         });
     });
 }
 
 fn bench_identification_verification_challenge(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
+    let mut rng = rand::thread_rng();
 
     let cert = {
-        let (_, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+        let (_, iss_params) = protocol.issue_params(&mut rng, i.clone());
         protocol.issue_certificate(&sig, iss_params)
     };
 
-    let (_, ver_req) = protocol.verification_request::<TestRand>(cert.clone());
+    let (_, ver_req) = protocol.verification_request(&mut rng, cert.clone());
     c.bench_function("identification_verification_challenge", |b| {
         b.iter(|| {
-            protocol.verification_challenge::<TestRand>(&sig, ver_req.clone());
+            protocol.verification_challenge(&mut rng, &sig, ver_req.clone());
         });
     });
 }
 
 fn bench_identification_verification_response(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
+    let mut rng = rand::thread_rng();
 
-    let (iss_secret, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+    let (iss_secret, iss_params) = protocol.issue_params(&mut rng, i.clone());
     let cert = protocol.issue_certificate(&sig, iss_params);
 
-    let (ver_secret, ver_req) = protocol.verification_request::<TestRand>(cert.clone());
+    let (ver_secret, ver_req) = protocol.verification_request(&mut rng, cert.clone());
     let challenge = protocol
-        .verification_challenge::<TestRand>(&sig, ver_req.clone())
+        .verification_challenge(&mut rng, &sig, ver_req.clone())
         .unwrap();
     c.bench_function("identification_verification_response", |b| {
         b.iter(|| {
@@ -162,13 +168,14 @@ fn bench_identification_verification_response(c: &mut Criterion) {
 
 fn bench_identification_verification(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
+    let mut rng = rand::thread_rng();
 
-    let (iss_secret, iss_params) = protocol.issue_params::<TestRand>(i.clone());
+    let (iss_secret, iss_params) = protocol.issue_params(&mut rng, i.clone());
     let cert = protocol.issue_certificate(&sig, iss_params);
 
-    let (ver_secret, ver_req) = protocol.verification_request::<TestRand>(cert.clone());
+    let (ver_secret, ver_req) = protocol.verification_request(&mut rng, cert.clone());
     let challenge = protocol
-        .verification_challenge::<TestRand>(&sig, ver_req.clone())
+        .verification_challenge(&mut rng, &sig, ver_req.clone())
         .unwrap();
     let response =
         protocol.verification_response(challenge.clone(), iss_secret.clone(), ver_secret.clone());
@@ -217,15 +224,6 @@ impl SignatureInIdentification for TestSig {
             }
             Err(_) => false,
         }
-    }
-}
-
-struct TestRand;
-
-impl schnorr_rs::Rand for TestRand {
-    fn random_number(module: &num_bigint::BigUint) -> num_bigint::BigUint {
-        let mut rng = rand::thread_rng();
-        rng.gen_biguint_range(&BigUint::ZERO, module)
     }
 }
 
