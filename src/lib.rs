@@ -5,10 +5,9 @@
 //! - Schnorr Signature Scheme
 //! - A variant of Schnorr Signature Scheme (based on elliptic curve cryptography)
 
-pub mod identification;
 use std::str::FromStr;
 
-pub use identification::*;
+pub mod identification;
 
 pub mod signature;
 use serde::{Deserialize, Serialize};
@@ -29,8 +28,6 @@ pub trait SignatureInIdentification {
     fn sign<T: AsRef<[u8]>>(&self, value: T) -> Vec<u8>;
     fn verify<T: AsRef<[u8]>>(&self, value: T, signature: &[u8]) -> bool;
 }
-
-pub type Identity = BigUint;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct SchnorrGroup {

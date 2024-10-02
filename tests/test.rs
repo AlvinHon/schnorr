@@ -1,8 +1,6 @@
 use num_bigint::BigUint;
 
-use schnorr_rs::{
-    Hash, Identification, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
-};
+use schnorr_rs::{Hash, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256};
 
 struct TestHash;
 impl Hash for TestHash {
@@ -43,6 +41,7 @@ impl SignatureInIdentification for TestSig {
 /// Test Schnorr Identification Protocol
 #[test]
 fn test_schnorr_identification_protocol() {
+    use schnorr_rs::identification::Identification;
     // setup parameters and identity
     let schnorr = Identification::<TestHash, TestSig>::from_str(
             "170635838606142236835668582024526088839118584923917947104881361096573663241835425726334688227245750988284470206339098086628427330905070264154820140913414479495481939755079707182465802484020944276739164978360438985178968038653749024959908959885446602817557541340750337331201115159158715982367397805202392369959",
@@ -75,6 +74,47 @@ fn test_schnorr_identification_protocol() {
         .unwrap();
     // user responds to the challenge
     let ver_res = schnorr.verification_response(challenge.clone(), iss_secret, ver_secret);
+    // verifier verifies the response
+    assert!(schnorr.verification(ver_req, challenge, ver_res));
+}
+
+/// Test Schnorr Identification Protocol based on elliptic curve cryptography
+#[test]
+fn test_schnorr_identification_protocol_ec() {
+    use schnorr_rs::identification::IdentificationECP256 as Identification;
+    use std::ops::Mul;
+
+    // setup parameters and identity
+    let schnorr = Identification::<TestHash, TestSig>::new();
+
+    let sig = {
+        let signature_scheme = SignatureSchemeECP256::<TestHash>::new();
+        let (signing_key, public_key) = signature_scheme.generate_key(&mut rand::thread_rng());
+        TestSig {
+            signature_scheme,
+            public_key,
+            signing_key,
+        }
+    };
+    let mut rng = rand::thread_rng();
+    let i = p256::AffinePoint::GENERATOR
+        .mul(p256::NonZeroScalar::random(&mut rng).as_ref())
+        .to_affine();
+
+    // user interacts with issuer to get a certificate
+    let (iss_secret, iss_params) = schnorr.issue_params(&mut rng, i.clone());
+    let cert = schnorr.issue_certificate(&sig, iss_params);
+
+    // user presents the certificate to the verifier
+    let (ver_secret, ver_req) = schnorr.verification_request(&mut rng, cert);
+    // verifier challenges the user's knowledge of the secret
+    let challenge = schnorr
+        .verification_challenge(&mut rng, &sig, ver_req.clone())
+        .unwrap();
+    // user responds to the challenge
+    let ver_res = schnorr
+        .verification_response(challenge.clone(), iss_secret, ver_secret)
+        .unwrap();
     // verifier verifies the response
     assert!(schnorr.verification(ver_req, challenge, ver_res));
 }

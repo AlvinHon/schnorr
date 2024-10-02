@@ -2,10 +2,13 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use num_bigint::BigUint;
+use p256::elliptic_curve::PrimeField;
 use schnorr_rs::{
-    Identification, SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
+    identification::{Identification, IdentificationECP256},
+    SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
 };
 use sha2::{Digest, Sha256};
+use std::ops::Mul;
 
 criterion_main!(signature_scheme, identification_protocol);
 
@@ -19,12 +22,19 @@ criterion_group! {
     name = identification_protocol;
     config = Criterion::default().sample_size(10).measurement_time(Duration::from_secs(1));
     targets =
-        bench_identification_issue_params,
-        bench_identification_issue_certificate,
-        bench_identification_verification_request,
-        bench_identification_verification_challenge,
-        bench_identification_verification_response,
-        bench_identification_verification
+        bench_identification_issue_params_with_dl,
+        bench_identification_issue_certificate_with_dl,
+        bench_identification_verification_request_with_dl,
+        bench_identification_verification_challenge_with_dl,
+        bench_identification_verification_response_with_dl,
+        bench_identification_verification_with_dl,
+
+        bench_identification_issue_params_with_ec,
+        bench_identification_issue_certificate_with_ec,
+        bench_identification_verification_request_with_ec,
+        bench_identification_verification_challenge_with_ec,
+        bench_identification_verification_response_with_ec,
+        bench_identification_verification_with_ec,
 }
 
 fn bench_signature_with_dl(c: &mut Criterion) {
@@ -88,30 +98,53 @@ fn bench_signature_with_ec(c: &mut Criterion) {
     });
 }
 
-fn bench_identification_issue_params(c: &mut Criterion) {
+fn bench_identification_issue_params_with_dl(c: &mut Criterion) {
     let (protocol, _, i) = setup_for_identification_tests();
     let mut rng = rand::thread_rng();
 
-    c.bench_function("identification_issue_params", |b| {
+    c.bench_function("identification_issue_params_with_dl", |b| {
         b.iter(|| {
             protocol.issue_params(&mut rng, i.clone());
         });
     });
 }
 
-fn bench_identification_issue_certificate(c: &mut Criterion) {
+fn bench_identification_issue_params_with_ec(c: &mut Criterion) {
+    let (protocol, _, i) = setup_for_identification_ec_tests();
+    let mut rng = rand::thread_rng();
+
+    c.bench_function("identification_issue_params_with_ec", |b| {
+        b.iter(|| {
+            protocol.issue_params(&mut rng, i.clone());
+        });
+    });
+}
+
+fn bench_identification_issue_certificate_with_dl(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
     let mut rng = rand::thread_rng();
 
     let (_, iss_params) = protocol.issue_params(&mut rng, i.clone());
-    c.bench_function("identification_issue_certificate", |b| {
+    c.bench_function("identification_issue_certificate_with_dl", |b| {
         b.iter(|| {
             protocol.issue_certificate(&sig, iss_params.clone());
         });
     });
 }
 
-fn bench_identification_verification_request(c: &mut Criterion) {
+fn bench_identification_issue_certificate_with_ec(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_ec_tests();
+    let mut rng = rand::thread_rng();
+
+    let (_, iss_params) = protocol.issue_params(&mut rng, i.clone());
+    c.bench_function("identification_issue_certificate_with_ec", |b| {
+        b.iter(|| {
+            protocol.issue_certificate(&sig, iss_params.clone());
+        });
+    });
+}
+
+fn bench_identification_verification_request_with_dl(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
     let mut rng = rand::thread_rng();
 
@@ -120,14 +153,30 @@ fn bench_identification_verification_request(c: &mut Criterion) {
         protocol.issue_certificate(&sig, iss_params)
     };
 
-    c.bench_function("identification_verification_request", |b| {
+    c.bench_function("identification_verification_request_with_dl", |b| {
         b.iter(|| {
             protocol.verification_request(&mut rng, cert.clone());
         });
     });
 }
 
-fn bench_identification_verification_challenge(c: &mut Criterion) {
+fn bench_identification_verification_request_with_ec(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_ec_tests();
+    let mut rng = rand::thread_rng();
+
+    let cert = {
+        let (_, iss_params) = protocol.issue_params(&mut rng, i.clone());
+        protocol.issue_certificate(&sig, iss_params)
+    };
+
+    c.bench_function("identification_verification_request_with_ec", |b| {
+        b.iter(|| {
+            protocol.verification_request(&mut rng, cert.clone());
+        });
+    });
+}
+
+fn bench_identification_verification_challenge_with_dl(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
     let mut rng = rand::thread_rng();
 
@@ -137,14 +186,31 @@ fn bench_identification_verification_challenge(c: &mut Criterion) {
     };
 
     let (_, ver_req) = protocol.verification_request(&mut rng, cert.clone());
-    c.bench_function("identification_verification_challenge", |b| {
+    c.bench_function("identification_verification_challenge_with_dl", |b| {
         b.iter(|| {
             protocol.verification_challenge(&mut rng, &sig, ver_req.clone());
         });
     });
 }
 
-fn bench_identification_verification_response(c: &mut Criterion) {
+fn bench_identification_verification_challenge_with_ec(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_ec_tests();
+    let mut rng = rand::thread_rng();
+
+    let cert = {
+        let (_, iss_params) = protocol.issue_params(&mut rng, i.clone());
+        protocol.issue_certificate(&sig, iss_params)
+    };
+
+    let (_, ver_req) = protocol.verification_request(&mut rng, cert.clone());
+    c.bench_function("identification_verification_challenge_with_ec", |b| {
+        b.iter(|| {
+            protocol.verification_challenge(&mut rng, &sig, ver_req.clone());
+        });
+    });
+}
+
+fn bench_identification_verification_response_with_dl(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
     let mut rng = rand::thread_rng();
 
@@ -155,7 +221,7 @@ fn bench_identification_verification_response(c: &mut Criterion) {
     let challenge = protocol
         .verification_challenge(&mut rng, &sig, ver_req.clone())
         .unwrap();
-    c.bench_function("identification_verification_response", |b| {
+    c.bench_function("identification_verification_response_with_dl", |b| {
         b.iter(|| {
             protocol.verification_response(
                 challenge.clone(),
@@ -166,7 +232,27 @@ fn bench_identification_verification_response(c: &mut Criterion) {
     });
 }
 
-fn bench_identification_verification(c: &mut Criterion) {
+fn bench_identification_verification_response_with_ec(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_ec_tests();
+    let mut rng = rand::thread_rng();
+
+    let (iss_secret, iss_params) = protocol.issue_params(&mut rng, i.clone());
+    let cert = protocol.issue_certificate(&sig, iss_params);
+
+    let (ver_secret, ver_req) = protocol.verification_request(&mut rng, cert.clone());
+    let challenge = protocol
+        .verification_challenge(&mut rng, &sig, ver_req.clone())
+        .unwrap();
+    c.bench_function("identification_verification_response_with_ec", |b| {
+        b.iter(|| {
+            protocol
+                .verification_response(challenge.clone(), iss_secret.clone(), ver_secret.clone())
+                .unwrap();
+        });
+    });
+}
+
+fn bench_identification_verification_with_dl(c: &mut Criterion) {
     let (protocol, sig, i) = setup_for_identification_tests();
     let mut rng = rand::thread_rng();
 
@@ -179,7 +265,28 @@ fn bench_identification_verification(c: &mut Criterion) {
         .unwrap();
     let response =
         protocol.verification_response(challenge.clone(), iss_secret.clone(), ver_secret.clone());
-    c.bench_function("identification_verification", |b| {
+    c.bench_function("identification_verification_with_dl", |b| {
+        b.iter(|| {
+            protocol.verification(ver_req.clone(), challenge.clone(), response.clone());
+        });
+    });
+}
+
+fn bench_identification_verification_with_ec(c: &mut Criterion) {
+    let (protocol, sig, i) = setup_for_identification_ec_tests();
+    let mut rng = rand::thread_rng();
+
+    let (iss_secret, iss_params) = protocol.issue_params(&mut rng, i.clone());
+    let cert = protocol.issue_certificate(&sig, iss_params);
+
+    let (ver_secret, ver_req) = protocol.verification_request(&mut rng, cert.clone());
+    let challenge = protocol
+        .verification_challenge(&mut rng, &sig, ver_req.clone())
+        .unwrap();
+    let response = protocol
+        .verification_response(challenge.clone(), iss_secret.clone(), ver_secret.clone())
+        .unwrap();
+    c.bench_function("identification_verification_with_ec", |b| {
         b.iter(|| {
             protocol.verification(ver_req.clone(), challenge.clone(), response.clone());
         });
@@ -256,6 +363,43 @@ fn setup_for_identification_tests() -> (Identification<TestHash, TestSig>, TestS
         }
     };
     let i = BigUint::from(123u32);
+
+    (protocol, sig, i)
+}
+
+fn setup_for_identification_ec_tests() -> (
+    IdentificationECP256<TestHash, TestSig>,
+    TestSig,
+    p256::AffinePoint,
+) {
+    let protocol = IdentificationECP256::<TestHash, TestSig>::new();
+    let sig = {
+        let signature_scheme = SignatureSchemeECP256::<TestHash>::new();
+
+        let public_key = bincode::deserialize::<schnorr_rs::ec::PublicKey>(&[
+            33, 0, 0, 0, 0, 0, 0, 0, 3, 245, 117, 253, 38, 220, 148, 189, 244, 2, 157, 25, 124, 84,
+            226, 137, 208, 121, 144, 154, 210, 231, 60, 194, 154, 51, 39, 132, 139, 244, 135, 173,
+            153,
+        ])
+        .unwrap();
+        let signing_key = bincode::deserialize::<schnorr_rs::ec::SigningKey>(&[
+            45, 233, 160, 91, 10, 171, 188, 116, 44, 21, 59, 221, 31, 198, 0, 197, 53, 10, 232,
+            246, 112, 116, 45, 175, 47, 197, 139, 125, 115, 52, 211, 12,
+        ])
+        .unwrap();
+        TestSig {
+            signature_scheme,
+            public_key,
+            signing_key,
+        }
+    };
+    let i = p256::AffinePoint::GENERATOR
+        .mul(
+            p256::NonZeroScalar::new(p256::Scalar::from_u128(123))
+                .unwrap()
+                .as_ref(),
+        )
+        .to_affine();
 
     (protocol, sig, i)
 }

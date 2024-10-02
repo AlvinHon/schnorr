@@ -1,9 +1,9 @@
-//! Implementation of Schnorr Identification Protocol
+//! Implementation of Schnorr Identification Protocol based on the Discrete Logarithm problem.
 
 use num_bigint::{BigUint, RandBigInt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Hash, Identity, SchnorrGroup, SignatureInIdentification};
+use crate::{Hash, SchnorrGroup, SignatureInIdentification};
 
 /// Schnorr Identification Protocol implementation with generic hash and signature schemes.
 ///
@@ -47,7 +47,7 @@ where
     pub fn issue_params<R: rand::RngCore>(
         &self,
         rng: &mut R,
-        i: Identity,
+        i: BigUint,
     ) -> (IssueSecret, IssueParams) {
         let e = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
         // v = a^(-e) mod p
@@ -179,7 +179,7 @@ pub struct IssueSecret {
 /// Issue parameters for identification protocol.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct IssueParams {
-    i: Identity,
+    i: BigUint,
     v: BigUint,
 }
 
