@@ -3,7 +3,6 @@
 use digest::Digest;
 use p256::elliptic_curve::{point::AffineCoordinates, Group};
 
-use crate::SignatureInIdentification;
 use serde::{Deserialize, Serialize};
 use std::ops::{Mul, Neg};
 
@@ -17,25 +16,15 @@ use std::ops::{Mul, Neg};
 /// 5. Verification response: Calculate p = k + r * e.
 /// 6. Verification: Verify if y == pG + rV.
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub struct Identification<H: Digest, S: SignatureInIdentification>
-where
-    S: SignatureInIdentification,
-    H: Digest,
-{
+pub struct Identification {
     /// generator point
     g: p256::AffinePoint,
-    _phantom: std::marker::PhantomData<(H, S)>,
 }
 
-impl<H, S> Identification<H, S>
-where
-    S: SignatureInIdentification,
-    H: Digest,
-{
+impl Identification {
     pub fn new() -> Self {
         Self {
             g: p256::ProjectivePoint::generator().to_affine(),
-            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -59,16 +48,21 @@ where
     /// Sign the hash of the concatenation of i and v.
     /// Return the issue certificate.
     /// The issue certificate is used to create a verification request (by calling [Identification::verification_request]).
-    pub fn issue_certificate(
+    pub fn issue_certificate<R, H, Sig>(
         &self,
-        signature_scheme: &S,
+        rng: &mut R,
+        signature_scheme: &Sig,
         issue_params: IssueParams,
-    ) -> IssueCertificate {
+    ) -> IssueCertificate
+    where
+        R: rand::CryptoRng + rand::RngCore,
+        H: Digest,
+        Sig: signature::RandomizedDigestSigner<H, Vec<u8>>,
+    {
         // s = sign(H(i_x || v_x))
-        let hashed_bytes = H::new()
-            .chain_update([issue_params.i.x().to_vec(), issue_params.v.x().to_vec()].concat())
-            .finalize();
-        let s = signature_scheme.sign(hashed_bytes);
+        let digest = H::new()
+            .chain_update([issue_params.i.x().to_vec(), issue_params.v.x().to_vec()].concat());
+        let s = signature_scheme.sign_digest_with_rng(rng, digest);
 
         IssueCertificate {
             params: issue_params,
@@ -101,26 +95,30 @@ where
     /// (by calling [Identification::verification_response]).
     /// Return None if the signature is invalid.
     /// The verification challenge is used to create a verification response (by calling [Identification::verification_response]).
-    pub fn verification_challenge<R: rand::CryptoRng + rand::RngCore>(
+    pub fn verification_challenge<R, H, Ver>(
         &self,
         rng: &mut R,
-        signature_scheme: &S,
+        signature_scheme: &Ver,
         request: VerificationRequest,
-    ) -> Option<VerificationChallenge> {
+    ) -> Option<VerificationChallenge>
+    where
+        R: rand::CryptoRng + rand::RngCore,
+        H: Digest,
+        Ver: signature::DigestVerifier<H, Vec<u8>>,
+    {
         // verify signature: s == sign(H(i || v))
-        let hashed_bytes = H::new()
-            .chain_update(
-                [
-                    request.certificate.params.i.x().to_vec(),
-                    request.certificate.params.v.x().to_vec(),
-                ]
-                .concat(),
-            )
-            .finalize();
+        let digest = H::new().chain_update(
+            [
+                request.certificate.params.i.x().to_vec(),
+                request.certificate.params.v.x().to_vec(),
+            ]
+            .concat(),
+        );
 
         signature_scheme
-            .verify(hashed_bytes, &request.certificate.s)
-            .then_some(VerificationChallenge {
+            .verify_digest(digest, &request.certificate.s)
+            .ok()
+            .map(|_| VerificationChallenge {
                 r: p256::NonZeroScalar::random(rng),
             })
     }

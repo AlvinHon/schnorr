@@ -12,18 +12,12 @@ use serde::{Deserialize, Serialize};
 use num_bigint::BigUint;
 
 pub mod dl;
-pub use dl::SignatureScheme;
+pub use dl::*;
 
 pub mod ec;
 pub type SignatureSchemeECP256<H> = ec::SignatureScheme<H>;
 
 pub mod identification;
-
-/// Signature trait for Schnorr Identification Protocol.
-pub trait SignatureInIdentification {
-    fn sign<T: AsRef<[u8]>>(&self, value: T) -> Vec<u8>;
-    fn verify<T: AsRef<[u8]>>(&self, value: T, signature: &[u8]) -> bool;
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct SchnorrGroup {

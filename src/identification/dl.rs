@@ -3,7 +3,7 @@
 use num_bigint::{BigUint, RandBigInt};
 use serde::{Deserialize, Serialize};
 
-use crate::{SchnorrGroup, SignatureInIdentification};
+use crate::SchnorrGroup;
 use digest::Digest;
 
 /// Schnorr Identification Protocol implementation with generic hash and signature schemes.
@@ -16,28 +16,16 @@ use digest::Digest;
 /// 5. Verification response: Calculate p = k + r * e mod q.
 /// 6. Verification: Verify if y == a^p * v^r mod p.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Identification<H: Digest, S: SignatureInIdentification>
-where
-    S: SignatureInIdentification,
-    H: Digest,
-{
+pub struct Identification {
     group: SchnorrGroup,
-    _phantom: std::marker::PhantomData<(H, S)>,
 }
 
-impl<H, S> Identification<H, S>
-where
-    S: SignatureInIdentification,
-    H: Digest,
-{
+impl Identification {
     /// Create a Schnorr Identification Protocol from string representation of p, q, and a,
     /// which are the parameters of the schnorr group (See the function [SchnorrGroup::from_str]).
     pub fn from_str(p: &str, q: &str, a: &str) -> Option<Self> {
         let group = SchnorrGroup::from_str(p, q, a)?;
-        Some(Self {
-            group,
-            _phantom: std::marker::PhantomData,
-        })
+        Some(Self { group })
     }
 
     /// Issue parameters for identification protocol.
@@ -65,12 +53,21 @@ where
     /// Sign the hash of the concatenation of i and v.
     /// Return the issue certificate.
     /// The issue certificate is used to create a verification request (by calling [Identification::verification_request]).
-    pub fn issue_certificate(&self, signature_scheme: &S, params: IssueParams) -> IssueCertificate {
+    pub fn issue_certificate<R, H, Sig>(
+        &self,
+        rng: &mut R,
+        signature_scheme: &Sig,
+        params: IssueParams,
+    ) -> IssueCertificate
+    where
+        R: rand::CryptoRng + rand::RngCore,
+        H: Digest,
+        Sig: signature::RandomizedDigestSigner<H, Vec<u8>>,
+    {
         // s = sign(H(i || v))
-        let hashed_bytes = H::new()
-            .chain_update([params.i.to_bytes_le(), params.v.to_bytes_le()].concat())
-            .finalize();
-        let s = signature_scheme.sign(hashed_bytes);
+        let digest =
+            H::new().chain_update([params.i.to_bytes_le(), params.v.to_bytes_le()].concat());
+        let s = signature_scheme.sign_digest_with_rng(rng, digest);
 
         IssueCertificate { params, s }
     }
@@ -101,25 +98,29 @@ where
     /// (by calling [Identification::verification_response]).
     /// Return None if the signature is invalid.
     /// The verification challenge is used to create a verification response (by calling [Identification::verification_response]).
-    pub fn verification_challenge<R: rand::RngCore>(
+    pub fn verification_challenge<R, H, Ver>(
         &self,
         rng: &mut R,
-        signature_scheme: &S,
+        signature_scheme: &Ver,
         request: VerificationRequest,
-    ) -> Option<VerificationChallenge> {
+    ) -> Option<VerificationChallenge>
+    where
+        R: rand::CryptoRng + rand::RngCore,
+        H: Digest,
+        Ver: signature::DigestVerifier<H, Vec<u8>>,
+    {
         // verify signature: s == sign(H(i || v))
-        let hashed_bytes = H::new()
-            .chain_update(
-                [
-                    request.certificate.params.i.to_bytes_le(),
-                    request.certificate.params.v.to_bytes_le(),
-                ]
-                .concat(),
-            )
-            .finalize();
+        let digest = H::new().chain_update(
+            [
+                request.certificate.params.i.to_bytes_le(),
+                request.certificate.params.v.to_bytes_le(),
+            ]
+            .concat(),
+        );
         signature_scheme
-            .verify(hashed_bytes, &request.certificate.s)
-            .then_some(VerificationChallenge {
+            .verify_digest(digest, &request.certificate.s)
+            .ok()
+            .map(|_| VerificationChallenge {
                 r: rng.gen_biguint_range(&BigUint::ZERO, &self.group.q),
             })
     }

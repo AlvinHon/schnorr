@@ -192,3 +192,54 @@ impl TryFrom<&[u8]> for Signature {
         Ok(Signature { e, s })
     }
 }
+
+pub struct Signer<'a, H>
+where
+    H: Digest,
+{
+    pub key: &'a SigningKey,
+    pub pub_key: &'a PublicKey,
+    pub scheme: &'a SignatureScheme<H>,
+}
+
+impl<'a, H> signature::RandomizedDigestSigner<H, Vec<u8>> for Signer<'a, H>
+where
+    H: Digest,
+{
+    fn try_sign_digest_with_rng(
+        &self,
+        rng: &mut impl signature::rand_core::CryptoRngCore,
+        digest: H,
+    ) -> Result<Vec<u8>, signature::Error> {
+        let message = digest.finalize();
+        Ok(self
+            .scheme
+            .sign(rng, self.key, self.pub_key, message.as_slice())
+            .into())
+    }
+}
+
+pub struct Verifier<'a, H>
+where
+    H: Digest,
+{
+    pub key: &'a PublicKey,
+    pub scheme: &'a SignatureScheme<H>,
+}
+
+impl<'a, H, T> signature::DigestVerifier<H, T> for Verifier<'a, H>
+where
+    H: Digest,
+    T: AsRef<[u8]>,
+{
+    fn verify_digest(&self, digest: H, signature: &T) -> Result<(), signature::Error> {
+        let signature =
+            Signature::try_from(signature.as_ref()).map_err(|_| signature::Error::new())?;
+
+        let hashed_bytes = digest.finalize();
+        self.scheme
+            .verify(self.key, &hashed_bytes, &signature)
+            .then(|| ())
+            .ok_or(signature::Error::new())
+    }
+}
