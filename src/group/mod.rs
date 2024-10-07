@@ -17,7 +17,7 @@ pub trait Group: Clone {
     // multiplication operations
 
     fn dot(&self, p1: &Self::P, p2: &Self::P) -> Self::P;
-    fn gmul(&self, scalar: &Self::F) -> Self::P;
+    fn mul_by_generator(&self, scalar: &Self::F) -> Self::P;
     fn mul(&self, p: &Self::P, scalar: &Self::F) -> Self::P;
 
     // addition operations
@@ -26,8 +26,8 @@ pub trait Group: Clone {
     fn add_mul_scalar(&self, s1: &Self::F, s2: &Self::F, s3: &Self::F) -> Self::F;
     fn neg(&self, scalar: &Self::F) -> Self::F;
 
-    fn is_equavalent_scalars(s1: &Self::F, s2: &Self::F) -> bool;
-    fn is_equavalent_points(p1: &Self::P, p2: &Self::P) -> bool;
+    fn is_equivalent_scalars(s1: &Self::F, s2: &Self::F) -> bool;
+    fn is_equivalent_points(p1: &Self::P, p2: &Self::P) -> bool;
     fn map_point(point: &Self::P) -> Vec<u8>;
     fn map_to_scalar(bytes: &[u8]) -> Self::F;
 
@@ -82,7 +82,7 @@ impl Group for SchnorrGroup {
         p1 * p2 % &self.p
     }
 
-    fn gmul(&self, scalar: &BigUint) -> BigUint {
+    fn mul_by_generator(&self, scalar: &BigUint) -> BigUint {
         self.a.modpow(scalar, &self.p)
     }
 
@@ -98,10 +98,10 @@ impl Group for SchnorrGroup {
         &self.q - scalar
     }
 
-    fn is_equavalent_scalars(s1: &BigUint, s2: &BigUint) -> bool {
+    fn is_equivalent_scalars(s1: &BigUint, s2: &BigUint) -> bool {
         s1 == s2
     }
-    fn is_equavalent_points(p1: &BigUint, p2: &BigUint) -> bool {
+    fn is_equivalent_points(p1: &BigUint, p2: &BigUint) -> bool {
         p1 == p2
     }
 

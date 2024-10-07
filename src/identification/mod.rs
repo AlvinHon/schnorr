@@ -25,7 +25,7 @@ use crate::Group;
 use digest::Digest;
 use serde::{Deserialize, Serialize};
 
-/// Schnorr Identification Protocol implementation with generic hash and signature schemes.
+/// Schnorr Identification Protocol implementation.
 ///
 /// The protocol consists of the following steps:
 /// 1. Issue parameters: Generate a random number e and calculate v = a^(-e) mod p.
@@ -53,29 +53,30 @@ impl<G: Group> Identification<G> {
         let e = self.group.rand(rng);
         let neg_e = self.group.neg(&e);
         // v = a^(-e) mod p
-        let v = self.group.gmul(&neg_e);
+        let v = self.group.mul_by_generator(&neg_e);
         (IssueSecret { e }, IssueParams { i, v })
     }
 
     /// Issue a certificate for the identification protocol.
     /// Sign the hash of the concatenation of i and v.
+    /// The hash function and signature scheme must be consistent with the signature scheme used throughout the protocol.
     /// Return the issue certificate.
     /// The issue certificate is used to create a verification request (by calling [Identification::verification_request]).
-    pub fn issue_certificate<R, H, Sig>(
+    pub fn issue_certificate<R, H, S>(
         &self,
         rng: &mut R,
-        signature_scheme: &Sig,
+        signer: &S,
         params: IssueParams<G>,
     ) -> IssueCertificate<G>
     where
         R: rand::CryptoRng + rand::RngCore,
         H: Digest,
-        Sig: signature::RandomizedDigestSigner<H, Vec<u8>>,
+        S: signature::RandomizedDigestSigner<H, Vec<u8>>,
     {
         // s = sign(H(i || v))
         let digest =
             H::new().chain_update([G::map_point(&params.i), G::map_point(&params.v)].concat());
-        let s = signature_scheme.sign_digest_with_rng(rng, digest);
+        let s = signer.sign_digest_with_rng(rng, digest);
 
         IssueCertificate { params, s }
     }
@@ -92,7 +93,7 @@ impl<G: Group> Identification<G> {
     ) -> (VerificationRequestSecret<G>, VerificationRequest<G>) {
         let k = self.group.rand(rng);
         // y = a^k mod p
-        let y = self.group.gmul(&k);
+        let y = self.group.mul_by_generator(&k);
 
         (
             VerificationRequestSecret { k },
@@ -102,20 +103,21 @@ impl<G: Group> Identification<G> {
 
     /// Create a verification challenge for the identification protocol.
     /// Verify the signature of the certificate. If the signature is valid, generate a random number r.
+    /// The hash function and signature scheme must be consistent with the signature scheme used throughout the protocol.
     /// Return the verification challenge. The verification challenge is used to create a verification response
     /// (by calling [Identification::verification_response]).
     /// Return None if the signature is invalid.
     /// The verification challenge is used to create a verification response (by calling [Identification::verification_response]).
-    pub fn verification_challenge<R, H, Ver>(
+    pub fn verification_challenge<R, H, V>(
         &self,
         rng: &mut R,
-        signature_scheme: &Ver,
+        verifier: &V,
         request: VerificationRequest<G>,
     ) -> Option<VerificationChallenge<G>>
     where
         R: rand::CryptoRng + rand::RngCore,
         H: Digest,
-        Ver: signature::DigestVerifier<H, Vec<u8>>,
+        V: signature::DigestVerifier<H, Vec<u8>>,
     {
         // verify signature: s == sign(H(i || v))
         let digest = H::new().chain_update(
@@ -125,7 +127,7 @@ impl<G: Group> Identification<G> {
             ]
             .concat(),
         );
-        signature_scheme
+        verifier
             .verify_digest(digest, &request.certificate.s)
             .ok()
             .map(|_| VerificationChallenge {
@@ -163,11 +165,11 @@ impl<G: Group> Identification<G> {
     ) -> bool {
         // y == a^p * v^r mod p
         let lhs = {
-            let a_p = self.group.gmul(&response.p);
+            let a_p = self.group.mul_by_generator(&response.p);
             let v_r = self.group.mul(&request.certificate.params.v, &challenge.r);
             self.group.dot(&a_p, &v_r)
         };
         let rhs = request.y;
-        G::is_equavalent_points(&lhs, &rhs)
+        G::is_equivalent_points(&lhs, &rhs)
     }
 }

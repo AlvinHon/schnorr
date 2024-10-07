@@ -2,6 +2,8 @@ use digest::Digest;
 
 use crate::{Group, PublicKey, SignatureScheme, SigningKey};
 
+/// Implements the [signature::RandomizedDigestSigner] trait for a given signature scheme.
+/// It is used by [Identification](crate::Identification) in steps that need to sign a signature.
 pub struct Signer<'a, H, G>
 where
     H: Digest,

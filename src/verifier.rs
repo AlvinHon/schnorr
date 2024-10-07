@@ -2,6 +2,8 @@ use digest::Digest;
 
 use crate::{Group, PublicKey, Signature, SignatureScheme};
 
+/// Implements the [DigestVerifier](signature::DigestVerifier) trait for a given signature scheme.
+/// It is used by [Identification](crate::Identification) in steps that need to verify a signature.
 pub struct Verifier<'a, H, G>
 where
     H: Digest,

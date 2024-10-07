@@ -22,7 +22,7 @@ impl Group for SchnorrP256Group {
         p1.add(p2)
     }
 
-    fn gmul(&self, scalar: &Self::F) -> Self::P {
+    fn mul_by_generator(&self, scalar: &Self::F) -> Self::P {
         self.generator().mul(scalar.as_ref())
     }
 
@@ -38,10 +38,10 @@ impl Group for SchnorrP256Group {
         scalar.neg()
     }
 
-    fn is_equavalent_scalars(s1: &Self::F, s2: &Self::F) -> bool {
+    fn is_equivalent_scalars(s1: &Self::F, s2: &Self::F) -> bool {
         s1 == s2
     }
-    fn is_equavalent_points(p1: &Self::P, p2: &Self::P) -> bool {
+    fn is_equivalent_points(p1: &Self::P, p2: &Self::P) -> bool {
         p1 == p2
     }
 

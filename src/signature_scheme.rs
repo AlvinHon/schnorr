@@ -13,7 +13,6 @@ use crate::{Group, PublicKey, Signature, SigningKey};
 /// 3. Calculate s = k + e*d mod q.
 /// 4. The signature is (s, e).
 /// 5. Verify the signature by calculating r_v = a^s * p^e mod p and e_v = H(r || p || m). If e_v == e, then the signature is valid.
-///
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SignatureScheme<G: Group, H: Digest> {
     pub(crate) group: G,
@@ -36,7 +35,7 @@ where
         // p = a^(-d) mod p
         let d = self.group.rand(rng);
         let neg_d = self.group.neg(&d);
-        let p = self.group.gmul(&neg_d);
+        let p = self.group.mul_by_generator(&neg_d);
         (SigningKey { d }, PublicKey { p })
     }
 
@@ -55,7 +54,7 @@ where
     ) -> Signature<G> {
         let k = self.group.rand(rng);
         // r = a^k mod p
-        let r = self.group.gmul(&k);
+        let r = self.group.mul_by_generator(&k);
         // e = H(r || p || m) // Modification on original scheme: adding p to prevent existential forgery
         let e = G::map_to_scalar(
             H::new()
@@ -81,7 +80,7 @@ where
     pub fn verify(&self, key: &PublicKey<G>, message: &[u8], signature: &Signature<G>) -> bool {
         // r_v = a^s * p^e mod p
         let r_v = {
-            let a_s = self.group.gmul(&signature.s);
+            let a_s = self.group.mul_by_generator(&signature.s);
             let p_e = self.group.mul(&key.p, &signature.e);
             self.group.dot(&a_s, &p_e)
         };
@@ -93,6 +92,6 @@ where
                 .as_ref(),
         );
         // if e_v == e, then the signature is valid
-        G::is_equavalent_scalars(&e_v, &signature.e)
+        G::is_equivalent_scalars(&e_v, &signature.e)
     }
 }
