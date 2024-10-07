@@ -15,14 +15,6 @@ pub use signature::*;
 
 use num_bigint::BigUint;
 
-/// Hash function trait for Schnorr Protocols.
-///
-/// The trait is used to hash a byte array into a fixed-size byte array. Depends on the implementation, the output size may vary.
-/// For example, 32-btyte hash is required for Schnorr Signature Scheme based on elliptic curve cryptography.
-pub trait Hash {
-    fn hash<T: AsRef<[u8]>>(value: T) -> Vec<u8>;
-}
-
 /// Signature trait for Schnorr Identification Protocol.
 pub trait SignatureInIdentification {
     fn sign<T: AsRef<[u8]>>(&self, value: T) -> Vec<u8>;

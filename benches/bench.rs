@@ -7,7 +7,7 @@ use schnorr_rs::{
     identification::{Identification, IdentificationECP256},
     SignatureInIdentification, SignatureScheme, SignatureSchemeECP256,
 };
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use std::ops::Mul;
 
 criterion_main!(signature_scheme, identification_protocol);
@@ -38,7 +38,7 @@ criterion_group! {
 }
 
 fn bench_signature_with_dl(c: &mut Criterion) {
-    let signature_scheme = SignatureScheme::<TestHash>::from_str(
+    let signature_scheme = SignatureScheme::<Sha256>::from_str(
         "170635838606142236835668582024526088839118584923917947104881361096573663241835425726334688227245750988284470206339098086628427330905070264154820140913414479495481939755079707182465802484020944276739164978360438985178968038653749024959908959885446602817557541340750337331201115159158715982367397805202392369959",
         "85317919303071118417834291012263044419559292461958973552440680548286831620917712863167344113622875494142235103169549043314213665452535132077410070456707239747740969877539853591232901242010472138369582489180219492589484019326874512479954479942723301408778770670375168665600557579579357991183698902601196184979",
         "144213202463066458950689095305115948799436864106778035179311009761777898846700415257265179855055640783875383274707858827879036088093691306491953244054442062637113833957623609837630797581860524549453053884680615629934658560796659252072641537163117203253862736053101508959059343335640009185013786003173143740486",
@@ -77,7 +77,7 @@ fn bench_signature_with_dl(c: &mut Criterion) {
 
 fn bench_signature_with_ec(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
-    let signature_scheme = SignatureSchemeECP256::<TestHash>::new();
+    let signature_scheme = SignatureSchemeECP256::<Sha256>::new();
 
     let public_key = bincode::deserialize::<schnorr_rs::ec::PublicKey>(&[
         33, 0, 0, 0, 0, 0, 0, 0, 3, 245, 117, 253, 38, 220, 148, 189, 244, 2, 157, 25, 124, 84,
@@ -295,18 +295,8 @@ fn bench_identification_verification_with_ec(c: &mut Criterion) {
 
 // Helper structs and functions for testing
 
-struct TestHash;
-
-impl schnorr_rs::Hash for TestHash {
-    fn hash<T: AsRef<[u8]>>(value: T) -> Vec<u8> {
-        let mut hasher = Sha256::new();
-        hasher.update(value.as_ref());
-        hasher.finalize().to_vec()
-    }
-}
-
 struct TestSig {
-    signature_scheme: SignatureSchemeECP256<TestHash>,
+    signature_scheme: SignatureSchemeECP256<Sha256>,
     public_key: schnorr_rs::ec::PublicKey,
     signing_key: schnorr_rs::ec::SigningKey,
 }
@@ -334,8 +324,8 @@ impl SignatureInIdentification for TestSig {
     }
 }
 
-fn setup_for_identification_tests() -> (Identification<TestHash, TestSig>, TestSig, BigUint) {
-    let protocol = Identification::<TestHash, TestSig>::from_str(
+fn setup_for_identification_tests() -> (Identification<Sha256, TestSig>, TestSig, BigUint) {
+    let protocol = Identification::<Sha256, TestSig>::from_str(
         "170635838606142236835668582024526088839118584923917947104881361096573663241835425726334688227245750988284470206339098086628427330905070264154820140913414479495481939755079707182465802484020944276739164978360438985178968038653749024959908959885446602817557541340750337331201115159158715982367397805202392369959",
         "85317919303071118417834291012263044419559292461958973552440680548286831620917712863167344113622875494142235103169549043314213665452535132077410070456707239747740969877539853591232901242010472138369582489180219492589484019326874512479954479942723301408778770670375168665600557579579357991183698902601196184979",
         "144213202463066458950689095305115948799436864106778035179311009761777898846700415257265179855055640783875383274707858827879036088093691306491953244054442062637113833957623609837630797581860524549453053884680615629934658560796659252072641537163117203253862736053101508959059343335640009185013786003173143740486",
@@ -343,7 +333,7 @@ fn setup_for_identification_tests() -> (Identification<TestHash, TestSig>, TestS
     .unwrap();
 
     let sig = {
-        let signature_scheme = SignatureSchemeECP256::<TestHash>::new();
+        let signature_scheme = SignatureSchemeECP256::<Sha256>::new();
 
         let public_key = bincode::deserialize::<schnorr_rs::ec::PublicKey>(&[
             33, 0, 0, 0, 0, 0, 0, 0, 3, 245, 117, 253, 38, 220, 148, 189, 244, 2, 157, 25, 124, 84,
@@ -368,13 +358,13 @@ fn setup_for_identification_tests() -> (Identification<TestHash, TestSig>, TestS
 }
 
 fn setup_for_identification_ec_tests() -> (
-    IdentificationECP256<TestHash, TestSig>,
+    IdentificationECP256<Sha256, TestSig>,
     TestSig,
     p256::AffinePoint,
 ) {
-    let protocol = IdentificationECP256::<TestHash, TestSig>::new();
+    let protocol = IdentificationECP256::<Sha256, TestSig>::new();
     let sig = {
-        let signature_scheme = SignatureSchemeECP256::<TestHash>::new();
+        let signature_scheme = SignatureSchemeECP256::<Sha256>::new();
 
         let public_key = bincode::deserialize::<schnorr_rs::ec::PublicKey>(&[
             33, 0, 0, 0, 0, 0, 0, 0, 3, 245, 117, 253, 38, 220, 148, 189, 244, 2, 157, 25, 124, 84,

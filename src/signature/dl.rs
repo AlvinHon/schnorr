@@ -1,9 +1,10 @@
 //! Implementation of Schnorr Signature Scheme (based on discrete logarithm problem)
 
+use digest::Digest;
 use num_bigint::{BigUint, RandBigInt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Hash, SchnorrGroup};
+use crate::SchnorrGroup;
 
 /// Schnorr Signature Scheme based on discrete logarithm problem.
 ///
@@ -15,12 +16,12 @@ use crate::{Hash, SchnorrGroup};
 /// 5. Verify the signature by calculating r_v = a^s * p^e mod p and e_v = H(r || p || m). If e_v == e, then the signature is valid.
 ///
 #[derive(Clone, Serialize, Deserialize)]
-pub struct SignatureScheme<H: Hash> {
+pub struct SignatureScheme<H: Digest> {
     group: SchnorrGroup,
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<H: Hash> SignatureScheme<H> {
+impl<H: Digest> SignatureScheme<H> {
     /// Create a Schnorr Identification Protocol from string representation of p, q, and a,
     /// which are the parameters of the schnorr group (See the function [SchnorrGroup::from_str]).
     pub fn from_str(p: &str, q: &str, a: &str) -> Option<Self> {
@@ -64,14 +65,19 @@ impl<H: Hash> SignatureScheme<H> {
         // r = a^k mod p
         let r = self.group.a.modpow(&k, &self.group.p);
         // e = H(r || p || m) // Modification on original scheme: adding p to prevent existential forgery
-        let e = BigUint::from_bytes_le(&H::hash(
-            [
-                r.to_bytes_le(),
-                pub_key.p.to_bytes_le(),
-                message.as_ref().to_vec(),
-            ]
-            .concat(),
-        ));
+        let e = BigUint::from_bytes_le(
+            H::new()
+                .chain_update(
+                    [
+                        r.to_bytes_le(),
+                        pub_key.p.to_bytes_le(),
+                        message.as_ref().to_vec(),
+                    ]
+                    .concat(),
+                )
+                .finalize()
+                .as_ref(),
+        );
         // s = k + e*d mod q
         let s = &k + &e * &key.d % &self.group.q;
         Signature { s, e }
@@ -86,9 +92,12 @@ impl<H: Hash> SignatureScheme<H> {
             * key.p.modpow(&signature.e, &self.group.p)
             % &self.group.p;
         // e_v = H(r || p || m) // Modification on original scheme: adding p to prevent existential forgery
-        let e_v = BigUint::from_bytes_le(&H::hash(
-            [r_v.to_bytes_le(), key.p.to_bytes_le(), message.to_vec()].concat(),
-        ));
+        let e_v = BigUint::from_bytes_le(
+            H::new()
+                .chain_update([r_v.to_bytes_le(), key.p.to_bytes_le(), message.to_vec()].concat())
+                .finalize()
+                .as_ref(),
+        );
         // if e_v == e, then the signature is valid
         e_v == signature.e
     }

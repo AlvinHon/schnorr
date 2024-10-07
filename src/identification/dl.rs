@@ -3,7 +3,8 @@
 use num_bigint::{BigUint, RandBigInt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Hash, SchnorrGroup, SignatureInIdentification};
+use crate::{SchnorrGroup, SignatureInIdentification};
+use digest::Digest;
 
 /// Schnorr Identification Protocol implementation with generic hash and signature schemes.
 ///
@@ -15,10 +16,10 @@ use crate::{Hash, SchnorrGroup, SignatureInIdentification};
 /// 5. Verification response: Calculate p = k + r * e mod q.
 /// 6. Verification: Verify if y == a^p * v^r mod p.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Identification<H: Hash, S: SignatureInIdentification>
+pub struct Identification<H: Digest, S: SignatureInIdentification>
 where
     S: SignatureInIdentification,
-    H: Hash,
+    H: Digest,
 {
     group: SchnorrGroup,
     _phantom: std::marker::PhantomData<(H, S)>,
@@ -27,7 +28,7 @@ where
 impl<H, S> Identification<H, S>
 where
     S: SignatureInIdentification,
-    H: Hash,
+    H: Digest,
 {
     /// Create a Schnorr Identification Protocol from string representation of p, q, and a,
     /// which are the parameters of the schnorr group (See the function [SchnorrGroup::from_str]).
@@ -64,20 +65,14 @@ where
     /// Sign the hash of the concatenation of i and v.
     /// Return the issue certificate.
     /// The issue certificate is used to create a verification request (by calling [Identification::verification_request]).
-    pub fn issue_certificate(
-        &self,
-        signature_scheme: &S,
-        issue_params: IssueParams,
-    ) -> IssueCertificate {
+    pub fn issue_certificate(&self, signature_scheme: &S, params: IssueParams) -> IssueCertificate {
         // s = sign(H(i || v))
-        let s = signature_scheme.sign(H::hash(
-            [issue_params.i.to_bytes_le(), issue_params.v.to_bytes_le()].concat(),
-        ));
+        let hashed_bytes = H::new()
+            .chain_update([params.i.to_bytes_le(), params.v.to_bytes_le()].concat())
+            .finalize();
+        let s = signature_scheme.sign(hashed_bytes);
 
-        IssueCertificate {
-            params: issue_params,
-            s,
-        }
+        IssueCertificate { params, s }
     }
 
     /// Create a verification request for the identification protocol.
@@ -113,22 +108,20 @@ where
         request: VerificationRequest,
     ) -> Option<VerificationChallenge> {
         // verify signature: s == sign(H(i || v))
-        if !signature_scheme.verify(
-            H::hash(
+        let hashed_bytes = H::new()
+            .chain_update(
                 [
                     request.certificate.params.i.to_bytes_le(),
                     request.certificate.params.v.to_bytes_le(),
                 ]
                 .concat(),
-            ),
-            &request.certificate.s,
-        ) {
-            return None;
-        }
-
-        Some(VerificationChallenge {
-            r: rng.gen_biguint_range(&BigUint::ZERO, &self.group.q),
-        })
+            )
+            .finalize();
+        signature_scheme
+            .verify(hashed_bytes, &request.certificate.s)
+            .then_some(VerificationChallenge {
+                r: rng.gen_biguint_range(&BigUint::ZERO, &self.group.q),
+            })
     }
 
     /// Create a verification response for the identification protocol.

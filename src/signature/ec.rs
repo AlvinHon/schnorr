@@ -1,6 +1,6 @@
 //! Implementation of Schnorr Signature Scheme (a varient scheme by using elliptic curve cryptography)
 
-use crate::Hash;
+use digest::Digest;
 use p256::{
     elliptic_curve::{point::AffineCoordinates, Group, PrimeField},
     FieldBytes, NistP256,
@@ -19,13 +19,13 @@ use std::ops::{Mul, Neg};
 /// The scheme is based on the elliptic curve cryptography with the curve P-256.
 /// The hash function H is used to hash a byte array into a 32-byte array.
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub struct SignatureScheme<H: Hash> {
+pub struct SignatureScheme<H: Digest> {
     /// generator point
     g: p256::AffinePoint,
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<H: Hash> SignatureScheme<H> {
+impl<H: Digest> SignatureScheme<H> {
     pub fn new() -> Self {
         Self {
             g: p256::ProjectivePoint::generator().to_affine(),
@@ -70,9 +70,11 @@ impl<H: Hash> SignatureScheme<H> {
         // e = H(r_x || p_x || m)
         let r_x = r.to_affine().x().to_vec();
         let p_x = pub_key.p.x().to_vec();
-        let e = p256::elliptic_curve::ScalarPrimitive::<p256::NistP256>::from_slice(&H::hash(
-            [r_x, p_x, message.as_ref().to_vec()].concat(),
-        ))
+        let e = p256::elliptic_curve::ScalarPrimitive::<p256::NistP256>::from_slice(
+            &H::new()
+                .chain_update([r_x, p_x, message.as_ref().to_vec()].concat())
+                .finalize(),
+        )
         .unwrap();
         let e = p256::Scalar::from(e);
         // s = k + e*d
@@ -92,9 +94,11 @@ impl<H: Hash> SignatureScheme<H> {
         // ev = H(r_x || p_x || m)
         let r_x = r_v.to_affine().x().to_vec();
         let p_x = key.p.x().to_vec();
-        let e_v = p256::elliptic_curve::ScalarPrimitive::<p256::NistP256>::from_slice(&H::hash(
-            [r_x, p_x, message.to_vec()].concat(),
-        ));
+        let e_v = p256::elliptic_curve::ScalarPrimitive::<p256::NistP256>::from_slice(
+            &H::new()
+                .chain_update([r_x, p_x, message.to_vec()].concat())
+                .finalize(),
+        );
         // if e_v == e, then the signature is valid\
         e_v.map(p256::Scalar::from)
             .map(|e_v| e_v == signature.e)

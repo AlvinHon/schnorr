@@ -1,10 +1,10 @@
 //! Implementation of Schnorr Identification Protocol based on elliptic curve cryptography.
 
+use digest::Digest;
 use p256::elliptic_curve::{point::AffineCoordinates, Group};
 
+use crate::SignatureInIdentification;
 use serde::{Deserialize, Serialize};
-
-use crate::{Hash, SignatureInIdentification};
 use std::ops::{Mul, Neg};
 
 /// Schnorr Identification Protocol implementation with generic hash and signature schemes.
@@ -17,10 +17,10 @@ use std::ops::{Mul, Neg};
 /// 5. Verification response: Calculate p = k + r * e.
 /// 6. Verification: Verify if y == pG + rV.
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub struct Identification<H: Hash, S: SignatureInIdentification>
+pub struct Identification<H: Digest, S: SignatureInIdentification>
 where
     S: SignatureInIdentification,
-    H: Hash,
+    H: Digest,
 {
     /// generator point
     g: p256::AffinePoint,
@@ -30,7 +30,7 @@ where
 impl<H, S> Identification<H, S>
 where
     S: SignatureInIdentification,
-    H: Hash,
+    H: Digest,
 {
     pub fn new() -> Self {
         Self {
@@ -65,9 +65,10 @@ where
         issue_params: IssueParams,
     ) -> IssueCertificate {
         // s = sign(H(i_x || v_x))
-        let s = signature_scheme.sign(H::hash(
-            [issue_params.i.x().to_vec(), issue_params.v.x().to_vec()].concat(),
-        ));
+        let hashed_bytes = H::new()
+            .chain_update([issue_params.i.x().to_vec(), issue_params.v.x().to_vec()].concat())
+            .finalize();
+        let s = signature_scheme.sign(hashed_bytes);
 
         IssueCertificate {
             params: issue_params,
@@ -107,22 +108,21 @@ where
         request: VerificationRequest,
     ) -> Option<VerificationChallenge> {
         // verify signature: s == sign(H(i || v))
-        if !signature_scheme.verify(
-            H::hash(
+        let hashed_bytes = H::new()
+            .chain_update(
                 [
                     request.certificate.params.i.x().to_vec(),
                     request.certificate.params.v.x().to_vec(),
                 ]
                 .concat(),
-            ),
-            &request.certificate.s,
-        ) {
-            return None;
-        }
+            )
+            .finalize();
 
-        Some(VerificationChallenge {
-            r: p256::NonZeroScalar::random(rng),
-        })
+        signature_scheme
+            .verify(hashed_bytes, &request.certificate.s)
+            .then_some(VerificationChallenge {
+                r: p256::NonZeroScalar::random(rng),
+            })
     }
 
     /// Create a verification response for the identification protocol.
