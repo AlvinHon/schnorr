@@ -24,6 +24,7 @@ pub mod verifier;
 pub use verifier::Verifier;
 
 pub mod identification;
+pub use identification::Identification;
 
 /// Instantiate a Schnorr Signature Protocol from string representation of p, q, and a:
 /// - p is a large prime
@@ -49,12 +50,8 @@ pub fn signature_scheme<H: Digest>(
 /// - a is a generator of the group of order q, i.e., a^q mod p = 1 by Fermat's Little Theorem.
 ///
 /// Return None if a is not a valid generator (i.e. a^q mod p != 1)
-pub fn identification_protocol(
-    p: &str,
-    q: &str,
-    a: &str,
-) -> Option<identification::Identification<SchnorrGroup>> {
-    SchnorrGroup::from_str(p, q, a).map(|group| identification::Identification { group })
+pub fn identification_protocol(p: &str, q: &str, a: &str) -> Option<Identification<SchnorrGroup>> {
+    SchnorrGroup::from_str(p, q, a).map(|group| Identification { group })
 }
 
 /// Instantiate a Schnorr Signature Protocol based on elliptic curve p256. The generator point is provided by crate [p256].
@@ -67,8 +64,8 @@ pub fn signature_scheme_p256<H: Digest>() -> SignatureScheme<SchnorrP256Group, H
 }
 
 /// Instantiate a Schnorr Identification Protocol based on elliptic curve p256. The generator point is provided by crate [p256].
-pub fn identificatio_protocol_p256() -> identification::Identification<SchnorrP256Group> {
-    identification::Identification {
+pub fn identification_protocol_p256() -> Identification<SchnorrP256Group> {
+    Identification {
         group: SchnorrP256Group,
     }
 }

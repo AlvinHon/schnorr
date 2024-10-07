@@ -374,7 +374,7 @@ fn setup_for_identification_ec_tests() -> (
     SigningKey<SchnorrP256Group>,
     p256::ProjectivePoint,
 ) {
-    let protocol = schnorr_rs::identificatio_protocol_p256();
+    let protocol = schnorr_rs::identification_protocol_p256();
     let (signature_scheme, public_key, signing_key) = test_signature_scheme_p256();
 
     let i = p256::AffinePoint::GENERATOR.mul(

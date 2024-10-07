@@ -58,7 +58,7 @@ fn test_schnorr_identification_protocol_ec() {
     let rng = &mut rand::thread_rng();
 
     // setup parameters and identity
-    let protocol = schnorr_rs::identificatio_protocol_p256();
+    let protocol = schnorr_rs::identification_protocol_p256();
     let signature_scheme = schnorr_rs::signature_scheme_p256::<Sha256>();
     let (signing_key, public_key) = signature_scheme.generate_key(rng);
     let signer = Signer {

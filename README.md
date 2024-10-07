@@ -10,7 +10,7 @@ While there are some limitations for you to consider before using it:
 - Uses [num-bigint](https://crates.io/crates/num-bigint).
 - when using ECC-based protocol, the library picks the curve [p256](https://crates.io/crates/p256) (a.k.a `secp256r1`, `prime256v1`) to use.
 
-Welcome to contribute to remove (any) limitations (e.g. to make it more flexible) while keeping the prinicple of simplicity.
+Note: this repository has not been thoroughly audited. Please take your own risk if you use it in production environment.
 
 ## Schnorr Signature Scheme
 
@@ -77,3 +77,5 @@ let ver_res = protocol.verification_response(challenge.clone(), iss_secret, ver_
 // Verifier verifies the response
 assert!(protocol.verification(ver_req, challenge, ver_res));
 ```
+
+For the ECC-based protocol, use method `schnorr_rs::identification_protocol_p256` to instantiate the protocol.
