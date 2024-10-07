@@ -1,10 +1,8 @@
 //! Implementation of Schnorr Identification Protocol based on the Discrete Logarithm problem.
 
-use num_bigint::{BigUint, RandBigInt};
-use serde::{Deserialize, Serialize};
-
-use crate::SchnorrGroup;
+use crate::Group;
 use digest::Digest;
+use serde::{Deserialize, Serialize};
 
 /// Schnorr Identification Protocol implementation with generic hash and signature schemes.
 ///
@@ -16,36 +14,25 @@ use digest::Digest;
 /// 5. Verification response: Calculate p = k + r * e mod q.
 /// 6. Verification: Verify if y == a^p * v^r mod p.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Identification {
-    group: SchnorrGroup,
+pub struct Identification<G: Group> {
+    pub(crate) group: G,
 }
 
-impl Identification {
-    /// Create a Schnorr Identification Protocol from string representation of p, q, and a,
-    /// which are the parameters of the schnorr group (See the function [SchnorrGroup::from_str]).
-    pub fn from_str(p: &str, q: &str, a: &str) -> Option<Self> {
-        let group = SchnorrGroup::from_str(p, q, a)?;
-        Some(Self { group })
-    }
-
+impl<G: Group> Identification<G> {
     /// Issue parameters for identification protocol.
     /// Generate a random number e and calculate v = a^(-e) mod p.
     /// Return the issue secret and issue parameters.
     /// The issue secret is used to calculate the verification response (by calling [Identification::verification_response]),
     /// while the issue parameters are used to create a certificate (by calling [Identification::issue_certificate]).
-    pub fn issue_params<R: rand::RngCore>(
+    pub fn issue_params<R: rand::RngCore + rand::CryptoRng>(
         &self,
         rng: &mut R,
-        i: BigUint,
-    ) -> (IssueSecret, IssueParams) {
-        let e = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
+        i: G::P,
+    ) -> (IssueSecret<G>, IssueParams<G>) {
+        let e = self.group.rand(rng);
+        let neg_e = self.group.neg(&e);
         // v = a^(-e) mod p
-        let v = self
-            .group
-            .a
-            .modpow(&e, &self.group.p)
-            .modinv(&self.group.p)
-            .unwrap();
+        let v = self.group.gmul(&neg_e);
         (IssueSecret { e }, IssueParams { i, v })
     }
 
@@ -57,8 +44,8 @@ impl Identification {
         &self,
         rng: &mut R,
         signature_scheme: &Sig,
-        params: IssueParams,
-    ) -> IssueCertificate
+        params: IssueParams<G>,
+    ) -> IssueCertificate<G>
     where
         R: rand::CryptoRng + rand::RngCore,
         H: Digest,
@@ -66,7 +53,7 @@ impl Identification {
     {
         // s = sign(H(i || v))
         let digest =
-            H::new().chain_update([params.i.to_bytes_le(), params.v.to_bytes_le()].concat());
+            H::new().chain_update([G::map_point(&params.i), G::map_point(&params.v)].concat());
         let s = signature_scheme.sign_digest_with_rng(rng, digest);
 
         IssueCertificate { params, s }
@@ -77,14 +64,14 @@ impl Identification {
     /// Return the verification request secret and the verification request.
     /// The verification request secret is used to calculate the verification response (by calling [Identification::verification_response]),
     /// while the verification request is used to create a verification challenge (by calling [Identification::verification_challenge]).
-    pub fn verification_request<R: rand::RngCore>(
+    pub fn verification_request<R: rand::RngCore + rand::CryptoRng>(
         &self,
         rng: &mut R,
-        certificate: IssueCertificate,
-    ) -> (VerificationRequestSecret, VerificationRequest) {
-        let k = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
+        certificate: IssueCertificate<G>,
+    ) -> (VerificationRequestSecret<G>, VerificationRequest<G>) {
+        let k = self.group.rand(rng);
         // y = a^k mod p
-        let y = self.group.a.modpow(&k, &self.group.p);
+        let y = self.group.gmul(&k);
 
         (
             VerificationRequestSecret { k },
@@ -102,8 +89,8 @@ impl Identification {
         &self,
         rng: &mut R,
         signature_scheme: &Ver,
-        request: VerificationRequest,
-    ) -> Option<VerificationChallenge>
+        request: VerificationRequest<G>,
+    ) -> Option<VerificationChallenge<G>>
     where
         R: rand::CryptoRng + rand::RngCore,
         H: Digest,
@@ -112,8 +99,8 @@ impl Identification {
         // verify signature: s == sign(H(i || v))
         let digest = H::new().chain_update(
             [
-                request.certificate.params.i.to_bytes_le(),
-                request.certificate.params.v.to_bytes_le(),
+                G::map_point(&request.certificate.params.i),
+                G::map_point(&request.certificate.params.v),
             ]
             .concat(),
         );
@@ -121,7 +108,7 @@ impl Identification {
             .verify_digest(digest, &request.certificate.s)
             .ok()
             .map(|_| VerificationChallenge {
-                r: rng.gen_biguint_range(&BigUint::ZERO, &self.group.q),
+                r: self.group.rand(rng),
             })
     }
 
@@ -131,13 +118,15 @@ impl Identification {
     /// (by calling [Identification::verification]).
     pub fn verification_response(
         &self,
-        challenge: VerificationChallenge,
-        iss_secret: IssueSecret,
-        ver_secret: VerificationRequestSecret,
-    ) -> VerificationResponse {
+        challenge: VerificationChallenge<G>,
+        iss_secret: IssueSecret<G>,
+        ver_secret: VerificationRequestSecret<G>,
+    ) -> VerificationResponse<G> {
         // p = k + r * e mod q
         VerificationResponse {
-            p: (&ver_secret.k + &(&challenge.r * &iss_secret.e)) % &self.group.q,
+            p: self
+                .group
+                .add_mul_scalar(&ver_secret.k, &challenge.r, &iss_secret.e),
         }
     }
 
@@ -147,64 +136,62 @@ impl Identification {
     /// The identification is valid if y == a^p * v^r mod p.
     pub fn verification(
         &self,
-        request: VerificationRequest,
-        challenge: VerificationChallenge,
-        response: VerificationResponse,
+        request: VerificationRequest<G>,
+        challenge: VerificationChallenge<G>,
+        response: VerificationResponse<G>,
     ) -> bool {
         // y == a^p * v^r mod p
-        let lhs = (&self.group.a.modpow(&response.p, &self.group.p)
-            * request
-                .certificate
-                .params
-                .v
-                .modpow(&challenge.r, &self.group.p))
-            % &self.group.p;
+        let lhs = {
+            let a_p = self.group.gmul(&response.p);
+            let v_r = self.group.mul(&request.certificate.params.v, &challenge.r);
+            self.group.dot(&a_p, &v_r)
+        };
         let rhs = request.y;
-        lhs == rhs
+        G::is_equavalent_points(&lhs, &rhs)
     }
 }
 
 /// Issue secret for identification protocol.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct IssueSecret {
-    e: BigUint,
+pub struct IssueSecret<G: Group> {
+    e: G::F,
 }
 
 /// Issue parameters for identification protocol.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct IssueParams {
-    i: BigUint,
-    v: BigUint,
+pub struct IssueParams<G: Group> {
+    i: G::P,
+    v: G::P,
 }
 
 /// Issue certificate for identification protocol.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct IssueCertificate {
-    params: IssueParams,
+#[derive(Clone)] // TODO implement Serialize and Deserialize
+pub struct IssueCertificate<G: Group> {
+    params: IssueParams<G>,
     s: Vec<u8>,
 }
 
 /// Verification request secret for identification protocol.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct VerificationRequestSecret {
-    k: BigUint,
+pub struct VerificationRequestSecret<G: Group> {
+    k: G::F,
 }
 
 /// Verification request for identification protocol.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct VerificationRequest {
-    certificate: IssueCertificate,
-    y: BigUint,
+#[derive(Clone)] // TODO implement Serialize and Deserialize
+pub struct VerificationRequest<G: Group> {
+    certificate: IssueCertificate<G>,
+    y: G::P,
 }
 
 /// Verification challenge for identification protocol.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct VerificationChallenge {
-    r: BigUint,
+pub struct VerificationChallenge<G: Group> {
+    r: G::F,
 }
 
 /// Verification response for identification protocol.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct VerificationResponse {
-    p: BigUint,
+pub struct VerificationResponse<G: Group> {
+    p: G::F,
 }

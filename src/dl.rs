@@ -1,10 +1,8 @@
 //! Implementation of Schnorr Signature Scheme (based on discrete logarithm problem)
-
 use digest::Digest;
-use num_bigint::{BigUint, RandBigInt};
 use serde::{Deserialize, Serialize};
 
-use crate::SchnorrGroup;
+use crate::Group;
 
 /// Schnorr Signature Scheme based on discrete logarithm problem.
 ///
@@ -16,35 +14,28 @@ use crate::SchnorrGroup;
 /// 5. Verify the signature by calculating r_v = a^s * p^e mod p and e_v = H(r || p || m). If e_v == e, then the signature is valid.
 ///
 #[derive(Clone, Serialize, Deserialize)]
-pub struct SignatureScheme<H: Digest> {
-    group: SchnorrGroup,
-    _phantom: std::marker::PhantomData<H>,
+pub struct SignatureScheme<G: Group, H: Digest> {
+    pub(crate) group: G,
+    pub(crate) _phantom: std::marker::PhantomData<H>,
 }
 
-impl<H: Digest> SignatureScheme<H> {
-    /// Create a Schnorr Identification Protocol from string representation of p, q, and a,
-    /// which are the parameters of the schnorr group (See the function [SchnorrGroup::from_str]).
-    pub fn from_str(p: &str, q: &str, a: &str) -> Option<Self> {
-        let group = SchnorrGroup::from_str(p, q, a)?;
-        Some(Self {
-            group,
-            _phantom: std::marker::PhantomData,
-        })
-    }
-
+impl<G, H> SignatureScheme<G, H>
+where
+    G: Group,
+    H: Digest,
+{
     /// Generate a key pair (d, p) where p = a^(-d) mod p.
     /// Return the signing key and public key.
     /// The signing key is used to sign a message (by calling [SignatureScheme::sign]),
     /// while the public key is used to verify the signature (by calling [SignatureScheme::verify]).
-    pub fn generate_key<R: rand::RngCore>(&self, rng: &mut R) -> (SigningKey, PublicKey) {
+    pub fn generate_key<R: rand::RngCore + rand::CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> (SigningKey<G>, PublicKey<G>) {
         // p = a^(-d) mod p
-        let d = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
-        let p = self
-            .group
-            .a
-            .modpow(&d, &self.group.p)
-            .modinv(&self.group.p)
-            .unwrap();
+        let d = self.group.rand(rng);
+        let neg_d = self.group.neg(&d);
+        let p = self.group.gmul(&neg_d);
         (SigningKey { d }, PublicKey { p })
     }
 
@@ -54,23 +45,23 @@ impl<H: Digest> SignatureScheme<H> {
     ///
     /// Return the signature (s, e).
     /// The signature is used to verify the message (by calling [SignatureScheme::verify]).
-    pub fn sign<R: rand::RngCore, M: AsRef<[u8]>>(
+    pub fn sign<R: rand::RngCore + rand::CryptoRng, M: AsRef<[u8]>>(
         &self,
         rng: &mut R,
-        key: &SigningKey,
-        pub_key: &PublicKey,
+        key: &SigningKey<G>,
+        pub_key: &PublicKey<G>,
         message: M,
-    ) -> Signature {
-        let k = rng.gen_biguint_range(&BigUint::ZERO, &self.group.q);
+    ) -> Signature<G> {
+        let k = self.group.rand(rng);
         // r = a^k mod p
-        let r = self.group.a.modpow(&k, &self.group.p);
+        let r = self.group.gmul(&k);
         // e = H(r || p || m) // Modification on original scheme: adding p to prevent existential forgery
-        let e = BigUint::from_bytes_le(
+        let e = G::map_to_scalar(
             H::new()
                 .chain_update(
                     [
-                        r.to_bytes_le(),
-                        pub_key.p.to_bytes_le(),
+                        G::map_point(&r),
+                        G::map_point(&pub_key.p),
                         message.as_ref().to_vec(),
                     ]
                     .concat(),
@@ -79,45 +70,68 @@ impl<H: Digest> SignatureScheme<H> {
                 .as_ref(),
         );
         // s = k + e*d mod q
-        let s = &k + &e * &key.d % &self.group.q;
+        let s = self.group.add_mul_scalar(&k, &e, &key.d);
         Signature { s, e }
     }
 
     /// Verify the signature by calculating r_v = a^s * p^e mod p and e_v = H(r || p || m).
     /// If e_v == e, then the signature is valid.
     /// Return true if the signature is valid, otherwise false.
-    pub fn verify(&self, key: &PublicKey, message: &[u8], signature: &Signature) -> bool {
+    pub fn verify(&self, key: &PublicKey<G>, message: &[u8], signature: &Signature<G>) -> bool {
         // r_v = a^s * p^e mod p
-        let r_v = self.group.a.modpow(&signature.s, &self.group.p)
-            * key.p.modpow(&signature.e, &self.group.p)
-            % &self.group.p;
+        let r_v = {
+            let a_s = self.group.gmul(&signature.s);
+            let p_e = self.group.mul(&key.p, &signature.e);
+            self.group.dot(&a_s, &p_e)
+        };
         // e_v = H(r || p || m) // Modification on original scheme: adding p to prevent existential forgery
-        let e_v = BigUint::from_bytes_le(
+        let e_v = G::map_to_scalar(
             H::new()
-                .chain_update([r_v.to_bytes_le(), key.p.to_bytes_le(), message.to_vec()].concat())
+                .chain_update([G::map_point(&r_v), G::map_point(&key.p), message.to_vec()].concat())
                 .finalize()
                 .as_ref(),
         );
         // if e_v == e, then the signature is valid
-        e_v == signature.e
+        G::is_equavalent_scalars(&e_v, &signature.e)
     }
 }
 
 /// Signing key for the Schnorr Signature Scheme.
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct PublicKey {
-    p: BigUint,
+#[derive(PartialEq, Eq, Clone)]
+pub struct PublicKey<G: Group> {
+    p: G::P,
 }
 
-impl From<PublicKey> for Vec<u8> {
-    fn from(public_key: PublicKey) -> Self {
-        let p_bytes = public_key.p.to_bytes_le();
+impl<G: Group> Serialize for PublicKey<G> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let bytes = Vec::<u8>::from(self);
+        bytes.serialize(serializer)
+    }
+}
+
+impl<'de, G: Group> Deserialize<'de> for PublicKey<G> {
+    fn deserialize<D>(deserializer: D) -> Result<PublicKey<G>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let bytes = Vec::<u8>::deserialize(deserializer)?;
+        PublicKey::try_from(bytes.as_slice())
+            .map_err(|_| serde::de::Error::custom("Invalid public key"))
+    }
+}
+
+impl<G: Group> From<&PublicKey<G>> for Vec<u8> {
+    fn from(public_key: &PublicKey<G>) -> Self {
+        let p_bytes = G::serialize_point(&public_key.p);
         let p_bytes_len = p_bytes.len();
         [(p_bytes_len as u32).to_le_bytes().to_vec(), p_bytes].concat()
     }
 }
 
-impl TryFrom<&[u8]> for PublicKey {
+impl<G: Group> TryFrom<&[u8]> for PublicKey<G> {
     type Error = ();
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -132,26 +146,26 @@ impl TryFrom<&[u8]> for PublicKey {
         }
 
         let p_bytes = &value[4..];
-        let p = BigUint::from_bytes_le(p_bytes);
+        let p = G::deserialize_point(p_bytes);
         Ok(PublicKey { p })
     }
 }
 
 /// Public key for the Schnorr Signature Scheme.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct SigningKey {
-    d: BigUint,
+pub struct SigningKey<G: Group> {
+    d: G::F,
 }
 
-impl From<SigningKey> for Vec<u8> {
-    fn from(signing_key: SigningKey) -> Self {
-        let d_bytes = signing_key.d.to_bytes_le();
+impl<G: Group> From<SigningKey<G>> for Vec<u8> {
+    fn from(signing_key: SigningKey<G>) -> Self {
+        let d_bytes = G::serialize_scalar(&signing_key.d);
         let d_bytes_len = d_bytes.len();
         [(d_bytes_len as u32).to_le_bytes().to_vec(), d_bytes].concat()
     }
 }
 
-impl TryFrom<&[u8]> for SigningKey {
+impl<G: Group> TryFrom<&[u8]> for SigningKey<G> {
     type Error = ();
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -166,22 +180,22 @@ impl TryFrom<&[u8]> for SigningKey {
         }
 
         let d_bytes = &value[4..];
-        let d = BigUint::from_bytes_le(d_bytes);
+        let d = G::deserialize_scalar(d_bytes);
         Ok(SigningKey { d })
     }
 }
 
 /// Signature for the Schnorr Signature Scheme.
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct Signature {
-    s: BigUint,
-    e: BigUint,
+pub struct Signature<G: Group> {
+    s: G::F,
+    e: G::F,
 }
 
-impl From<Signature> for Vec<u8> {
-    fn from(signature: Signature) -> Self {
-        let s_bytes = signature.s.to_bytes_le();
-        let e_bytes = signature.e.to_bytes_le();
+impl<G: Group> From<Signature<G>> for Vec<u8> {
+    fn from(signature: Signature<G>) -> Self {
+        let s_bytes = G::serialize_scalar(&signature.s);
+        let e_bytes = G::serialize_scalar(&signature.e);
         let s_bytes_len = s_bytes.len();
         let e_bytes_len = e_bytes.len();
         [
@@ -194,7 +208,7 @@ impl From<Signature> for Vec<u8> {
     }
 }
 
-impl TryFrom<&[u8]> for Signature {
+impl<G: Group> TryFrom<&[u8]> for Signature<G> {
     type Error = ();
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -217,24 +231,26 @@ impl TryFrom<&[u8]> for Signature {
         let s_bytes = &value[4..4 + s_len];
         let e_bytes = &value[8 + s_len..];
 
-        let s = BigUint::from_bytes_le(s_bytes);
-        let e = BigUint::from_bytes_le(e_bytes);
+        let s = G::deserialize_scalar(s_bytes);
+        let e = G::deserialize_scalar(e_bytes);
         Ok(Signature { s, e })
     }
 }
 
-pub struct Signer<'a, H>
+pub struct Signer<'a, H, G>
 where
     H: Digest,
+    G: Group,
 {
-    pub key: &'a SigningKey,
-    pub pub_key: &'a PublicKey,
-    pub scheme: &'a SignatureScheme<H>,
+    pub key: &'a SigningKey<G>,
+    pub pub_key: &'a PublicKey<G>,
+    pub scheme: &'a SignatureScheme<G, H>,
 }
 
-impl<'a, H> signature::RandomizedDigestSigner<H, Vec<u8>> for Signer<'a, H>
+impl<'a, H, G> signature::RandomizedDigestSigner<H, Vec<u8>> for Signer<'a, H, G>
 where
     H: Digest,
+    G: Group,
 {
     fn try_sign_digest_with_rng(
         &self,
@@ -249,17 +265,19 @@ where
     }
 }
 
-pub struct Verifier<'a, H>
+pub struct Verifier<'a, H, G>
 where
     H: Digest,
+    G: Group,
 {
-    pub key: &'a PublicKey,
-    pub scheme: &'a SignatureScheme<H>,
+    pub key: &'a PublicKey<G>,
+    pub scheme: &'a SignatureScheme<G, H>,
 }
 
-impl<'a, H, T> signature::DigestVerifier<H, T> for Verifier<'a, H>
+impl<'a, H, G, T> signature::DigestVerifier<H, T> for Verifier<'a, H, G>
 where
     H: Digest,
+    G: Group,
     T: AsRef<[u8]>,
 {
     fn verify_digest(&self, digest: H, signature: &T) -> Result<(), signature::Error> {
