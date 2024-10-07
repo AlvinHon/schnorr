@@ -7,13 +7,17 @@
 
 use std::str::FromStr;
 
-pub mod identification;
-
-pub mod signature;
 use serde::{Deserialize, Serialize};
-pub use signature::*;
 
 use num_bigint::BigUint;
+
+pub mod dl;
+pub use dl::SignatureScheme;
+
+pub mod ec;
+pub type SignatureSchemeECP256<H> = ec::SignatureScheme<H>;
+
+pub mod identification;
 
 /// Signature trait for Schnorr Identification Protocol.
 pub trait SignatureInIdentification {
