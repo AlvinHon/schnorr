@@ -3,7 +3,10 @@ use std::time::Duration;
 use criterion::{criterion_group, criterion_main, Criterion};
 use num_bigint::BigUint;
 use p256::elliptic_curve::PrimeField;
-use schnorr_rs::{identification::Identification, SchnorrGroup, SchnorrP256Group, SignatureScheme};
+use schnorr_rs::{
+    identification::Identification, PublicKey, SchnorrGroup, SchnorrP256Group, SignatureScheme,
+    Signer, SigningKey, Verifier,
+};
 use sha2::Sha256;
 use std::ops::Mul;
 
@@ -84,7 +87,7 @@ fn bench_identification_issue_certificate_with_dl(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
@@ -102,7 +105,7 @@ fn bench_identification_issue_certificate_with_ec(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_ec_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
@@ -120,7 +123,7 @@ fn bench_identification_verification_request_with_dl(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
@@ -142,7 +145,7 @@ fn bench_identification_verification_request_with_ec(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_ec_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
@@ -164,13 +167,13 @@ fn bench_identification_verification_challenge_with_dl(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
     };
 
-    let verifier = schnorr_rs::Verifier {
+    let verifier = Verifier {
         scheme: &scheme,
         key: &pk,
     };
@@ -192,13 +195,13 @@ fn bench_identification_verification_challenge_with_ec(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_ec_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
     };
 
-    let verifier = schnorr_rs::Verifier {
+    let verifier = Verifier {
         scheme: &scheme,
         key: &pk,
     };
@@ -220,13 +223,13 @@ fn bench_identification_verification_response_with_dl(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
     };
 
-    let verifier = schnorr_rs::Verifier {
+    let verifier = Verifier {
         scheme: &scheme,
         key: &pk,
     };
@@ -253,13 +256,13 @@ fn bench_identification_verification_response_with_ec(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_ec_tests();
     let rng = &mut rand::thread_rng();
 
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
     };
 
-    let verifier = schnorr_rs::Verifier {
+    let verifier = Verifier {
         scheme: &scheme,
         key: &pk,
     };
@@ -285,13 +288,13 @@ fn bench_identification_verification_response_with_ec(c: &mut Criterion) {
 fn bench_identification_verification_with_dl(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_tests();
     let rng = &mut rand::thread_rng();
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
     };
 
-    let verifier = schnorr_rs::Verifier {
+    let verifier = Verifier {
         scheme: &scheme,
         key: &pk,
     };
@@ -315,13 +318,13 @@ fn bench_identification_verification_with_dl(c: &mut Criterion) {
 fn bench_identification_verification_with_ec(c: &mut Criterion) {
     let (protocol, scheme, pk, sk, i) = setup_for_identification_ec_tests();
     let rng = &mut rand::thread_rng();
-    let signer = schnorr_rs::Signer {
+    let signer = Signer {
         scheme: &scheme,
         key: &sk,
         pub_key: &pk,
     };
 
-    let verifier = schnorr_rs::Verifier {
+    let verifier = Verifier {
         scheme: &scheme,
         key: &pk,
     };
@@ -347,8 +350,8 @@ fn bench_identification_verification_with_ec(c: &mut Criterion) {
 fn setup_for_identification_tests() -> (
     Identification<SchnorrGroup>,
     SignatureScheme<SchnorrP256Group, Sha256>,
-    schnorr_rs::PublicKey<SchnorrP256Group>,
-    schnorr_rs::SigningKey<SchnorrP256Group>,
+    PublicKey<SchnorrP256Group>,
+    SigningKey<SchnorrP256Group>,
     BigUint,
 ) {
     let protocol = schnorr_rs::identification_protocol(
@@ -367,8 +370,8 @@ fn setup_for_identification_tests() -> (
 fn setup_for_identification_ec_tests() -> (
     Identification<SchnorrP256Group>,
     SignatureScheme<SchnorrP256Group, Sha256>,
-    schnorr_rs::PublicKey<SchnorrP256Group>,
-    schnorr_rs::SigningKey<SchnorrP256Group>,
+    PublicKey<SchnorrP256Group>,
+    SigningKey<SchnorrP256Group>,
     p256::ProjectivePoint,
 ) {
     let protocol = schnorr_rs::identificatio_protocol_p256();
@@ -384,9 +387,9 @@ fn setup_for_identification_ec_tests() -> (
 }
 
 fn test_signature_scheme() -> (
-    schnorr_rs::SignatureScheme<SchnorrGroup, Sha256>,
-    schnorr_rs::PublicKey<SchnorrGroup>,
-    schnorr_rs::SigningKey<SchnorrGroup>,
+    SignatureScheme<SchnorrGroup, Sha256>,
+    PublicKey<SchnorrGroup>,
+    SigningKey<SchnorrGroup>,
 ) {
     let signature_scheme = schnorr_rs::signature_scheme::<Sha256>(
         "170635838606142236835668582024526088839118584923917947104881361096573663241835425726334688227245750988284470206339098086628427330905070264154820140913414479495481939755079707182465802484020944276739164978360438985178968038653749024959908959885446602817557541340750337331201115159158715982367397805202392369959",
@@ -395,7 +398,7 @@ fn test_signature_scheme() -> (
     )
     .unwrap();
 
-    let public_key = bincode::deserialize::<schnorr_rs::PublicKey<SchnorrGroup>>(&[
+    let public_key = bincode::deserialize::<PublicKey<SchnorrGroup>>(&[
         132, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0, 24, 180, 28, 68, 59, 14, 97, 98, 29, 83, 161, 62,
         6, 108, 187, 55, 62, 203, 67, 87, 141, 73, 109, 144, 17, 38, 236, 203, 41, 180, 143, 77,
         251, 158, 254, 103, 165, 249, 150, 29, 48, 183, 217, 202, 246, 233, 105, 99, 232, 186, 32,
@@ -405,7 +408,7 @@ fn test_signature_scheme() -> (
         123, 87, 227, 35, 97, 55, 239, 102, 192, 52, 17, 0, 164, 1, 212, 6, 107,
     ])
     .unwrap();
-    let signing_key = bincode::deserialize::<schnorr_rs::SigningKey<SchnorrGroup>>(&[
+    let signing_key = bincode::deserialize::<SigningKey<SchnorrGroup>>(&[
         32, 0, 0, 0, 0, 0, 0, 0, 220, 167, 8, 158, 208, 13, 116, 68, 184, 232, 154, 120, 3, 29,
         178, 86, 37, 47, 152, 95, 96, 243, 171, 119, 204, 21, 31, 178, 7, 57, 252, 86, 91, 112, 64,
         149, 89, 117, 74, 175, 69, 75, 36, 131, 27, 102, 239, 168, 50, 80, 89, 117, 107, 50, 124,
@@ -420,20 +423,20 @@ fn test_signature_scheme() -> (
 }
 
 fn test_signature_scheme_p256() -> (
-    schnorr_rs::SignatureScheme<SchnorrP256Group, Sha256>,
-    schnorr_rs::PublicKey<SchnorrP256Group>,
-    schnorr_rs::SigningKey<SchnorrP256Group>,
+    SignatureScheme<SchnorrP256Group, Sha256>,
+    PublicKey<SchnorrP256Group>,
+    SigningKey<SchnorrP256Group>,
 ) {
     let signature_scheme = schnorr_rs::signature_scheme_p256::<Sha256>();
 
-    let public_key = bincode::deserialize::<schnorr_rs::PublicKey<SchnorrP256Group>>(&[
+    let public_key = bincode::deserialize::<PublicKey<SchnorrP256Group>>(&[
         69, 0, 0, 0, 0, 0, 0, 0, 65, 0, 0, 0, 4, 208, 37, 170, 124, 248, 211, 207, 92, 33, 54, 142,
         113, 110, 214, 54, 138, 234, 216, 159, 138, 236, 30, 99, 219, 118, 0, 241, 138, 234, 36,
         170, 55, 125, 55, 15, 102, 140, 103, 242, 115, 63, 80, 81, 171, 211, 85, 10, 36, 223, 193,
         77, 105, 41, 159, 245, 137, 70, 31, 45, 78, 66, 49, 149, 197,
     ])
     .unwrap();
-    let signing_key = bincode::deserialize::<schnorr_rs::SigningKey<SchnorrP256Group>>(&[
+    let signing_key = bincode::deserialize::<SigningKey<SchnorrP256Group>>(&[
         40, 189, 24, 229, 3, 47, 52, 152, 4, 125, 15, 44, 32, 43, 190, 34, 141, 24, 205, 87, 37,
         130, 169, 105, 209, 96, 147, 140, 165, 196, 65, 200,
     ])

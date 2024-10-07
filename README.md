@@ -12,33 +12,12 @@ While there are some limitations for you to consider before using it:
 
 Welcome to contribute to remove (any) limitations (e.g. to make it more flexible) while keeping the prinicple of simplicity.
 
-## Schnorr Identification Protocol
-
-The protocol involves `user`, `issuer` and `verifier`, who share the same parameters that can be instantiated by `Identification::<Hash>::from_str`. In following example, the variable `schnorr` is its instantiation while `i` is the identify in type `BigUInt`.
-
-```rust
-let rng = &mut rand::thread_rng();
-
-// user interacts with issuer to get a certificate
-let (iss_secret, iss_params) = schnorr.issue_params(rng, i.clone());
-let cert = schnorr.issue_certificate(rng, &signature_signer, iss_params);
-// user presents the certificate to the verifier
-let (ver_secret, ver_req) = schnorr.verification_request(rng, cert);
-// verifier challenges the user's knowledge of the secret
-let challenge = schnorr
-    .verification_challenge(rng, &signature_verifier, ver_req.clone())
-    .unwrap();
-// user responds to the challenge
-let ver_res = schnorr.verification_response(challenge.clone(), iss_secret, ver_secret);
-// verifier verifies the response
-assert!(schnorr.verification(ver_req, challenge, ver_res));
-```
-
 ## Schnorr Signature Scheme
 
-The scheme starts with the struct `SignatureScheme<Hash>`. It can be instantiated by method `from_str`. In following example, the variable `schnorr` is its instantiation.
-
 ```rust
+// Specify the common parameters from Integer field elements. (Not provided by this crate)
+let scheme = schnorr_rs::signature_scheme::<sha2::Sha256>("1623299", "811649", "1109409").unwrap();
+
 let rng = &mut rand::thread_rng();
 
 let (key, public_key) = scheme.generate_key(rng);
@@ -47,5 +26,54 @@ let signature = scheme.sign(rng, &key, &public_key, message);
 assert!(scheme.verify(&public_key, message, &signature));
 ```
 
-For the ECC-based scheme, use struct `SignatureSchemeECP256` which is instantiated by `new` or `default` (because the generator used is fixed).
+For the ECC-based scheme, use method `schnorr_rs::signature_scheme_p256` to instantiate the scheme.
 
+
+## Schnorr Identification Protocol
+
+The protocol involves `user`, `issuer` and `verifier`, who share the same parameters defined in the struct `Identification`. 
+
+In following example, `i` is the identify in type `BigUInt`.
+
+```rust
+// Specify the common parameters from Integer field elements. (Not provided by this crate)
+let protocol = schnorr_rs::identification_protocol("1623299", "811649", "1109409").unwrap();
+
+let rng = &mut rand::thread_rng();
+
+// Specify the signature scheme used in the protocol. It is not a must to use the scheme provided
+// by this crate, as long as the signer and verifier implements the trait `signature::RandomizedDigestSigner`
+// and `signature::DigestVerifier` respectively.
+let signature_scheme = schnorr_rs::signature_scheme::<sha2::Sha256>("1623299", "811649", "1109409").unwrap();
+let (signing_key, public_key) = signature_scheme.generate_key(rng);
+let signer = schnorr_rs::Signer {
+    scheme: &signature_scheme,
+    key: &signing_key,
+    pub_key: &public_key,
+};
+let verifier = schnorr_rs::Verifier {
+    scheme: &signature_scheme,
+    key: &public_key,
+};
+
+// An identity represented by BigUint.
+let i = num_bigint::BigUint::from(123u32);
+
+// User interacts with issuer to get a certificate
+let (iss_secret, iss_params) = protocol.issue_params(rng, i.clone());
+let cert = protocol.issue_certificate(rng, &signer, iss_params);
+
+// User presents the certificate to the verifier
+let (ver_secret, ver_req) = protocol.verification_request(rng, cert);
+
+// Verifier challenges the user's knowledge of the secret
+let challenge = protocol
+    .verification_challenge(rng, &verifier, ver_req.clone())
+    .unwrap();
+
+// User responds to the challenge
+let ver_res = protocol.verification_response(challenge.clone(), iss_secret, ver_secret);
+
+// Verifier verifies the response
+assert!(protocol.verification(ver_req, challenge, ver_res));
+```
