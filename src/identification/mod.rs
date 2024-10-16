@@ -23,6 +23,7 @@ pub use ver_response::VerificationResponse;
 
 use crate::Group;
 use digest::Digest;
+use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 /// Schnorr Identification Protocol implementation.
@@ -45,7 +46,7 @@ impl<G: Group> Identification<G> {
     /// Return the issue secret and issue parameters.
     /// The issue secret is used to calculate the verification response (by calling [Identification::verification_response]),
     /// while the issue parameters are used to create a certificate (by calling [Identification::issue_certificate]).
-    pub fn issue_params<R: rand::RngCore + rand::CryptoRng>(
+    pub fn issue_params<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
         i: G::P,
@@ -69,7 +70,7 @@ impl<G: Group> Identification<G> {
         params: IssueParams<G>,
     ) -> IssueCertificate<G>
     where
-        R: rand::CryptoRng + rand::RngCore,
+        R: CryptoRng + RngCore,
         H: Digest,
         S: signature::RandomizedDigestSigner<H, Vec<u8>>,
     {
@@ -86,7 +87,7 @@ impl<G: Group> Identification<G> {
     /// Return the verification request secret and the verification request.
     /// The verification request secret is used to calculate the verification response (by calling [Identification::verification_response]),
     /// while the verification request is used to create a verification challenge (by calling [Identification::verification_challenge]).
-    pub fn verification_request<R: rand::RngCore + rand::CryptoRng>(
+    pub fn verification_request<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
         certificate: IssueCertificate<G>,
@@ -115,7 +116,7 @@ impl<G: Group> Identification<G> {
         request: VerificationRequest<G>,
     ) -> Option<VerificationChallenge<G>>
     where
-        R: rand::CryptoRng + rand::RngCore,
+        R: CryptoRng + RngCore,
         H: Digest,
         V: signature::DigestVerifier<H, Vec<u8>>,
     {

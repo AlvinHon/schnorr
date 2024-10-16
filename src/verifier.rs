@@ -26,7 +26,7 @@ where
         let hashed_bytes = digest.finalize();
         self.scheme
             .verify(self.key, &hashed_bytes, &signature)
-            .then(|| ())
+            .then_some(())
             .ok_or(signature::Error::new())
     }
 }

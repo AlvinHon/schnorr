@@ -1,5 +1,6 @@
 //! This module contains the definition of the struct `SchnorrP256Group` that implements trait `Group`.
 
+use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use super::Group;
@@ -68,11 +69,10 @@ impl Group for SchnorrP256Group {
     fn deserialize_scalar(bytes: &[u8]) -> Self::F {
         use p256::FieldBytes;
         let d_bytes = FieldBytes::from_slice(bytes);
-        p256::NonZeroScalar::from_repr(*d_bytes)
+        *p256::NonZeroScalar::from_repr(*d_bytes)
             .into_option()
             .unwrap()
             .as_ref()
-            .clone()
     }
 
     fn deserialize_point(bytes: &[u8]) -> Self::P {
@@ -89,7 +89,7 @@ impl Group for SchnorrP256Group {
             .unwrap()
     }
 
-    fn rand<R: rand::RngCore + rand::CryptoRng>(&self, rng: &mut R) -> Self::F {
-        p256::NonZeroScalar::random(rng).as_ref().clone()
+    fn rand<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F {
+        *p256::NonZeroScalar::random(rng).as_ref()
     }
 }

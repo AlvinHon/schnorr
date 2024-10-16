@@ -1,6 +1,7 @@
 //! Implementation of Schnorr Signature Scheme
 
 use digest::Digest;
+use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use crate::{Group, PublicKey, Signature, SigningKey};
@@ -28,7 +29,7 @@ where
     /// Return the signing key and public key.
     /// The signing key is used to sign a message (by calling [SignatureScheme::sign]),
     /// while the public key is used to verify the signature (by calling [SignatureScheme::verify]).
-    pub fn generate_key<R: rand::RngCore + rand::CryptoRng>(
+    pub fn generate_key<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
     ) -> (SigningKey<G>, PublicKey<G>) {
@@ -45,7 +46,7 @@ where
     ///
     /// Return the signature (s, e).
     /// The signature is used to verify the message (by calling [SignatureScheme::verify]).
-    pub fn sign<R: rand::RngCore + rand::CryptoRng, M: AsRef<[u8]>>(
+    pub fn sign<R: RngCore + CryptoRng, M: AsRef<[u8]>>(
         &self,
         rng: &mut R,
         key: &SigningKey<G>,

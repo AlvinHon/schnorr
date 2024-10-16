@@ -1,6 +1,7 @@
 //! This module contains the definition of the `Group` trait and the `SchnorrGroup` struct.
 
 use num_bigint::BigUint;
+use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -41,7 +42,7 @@ pub trait Group: Clone {
 
     // randomness function
 
-    fn rand<R: rand::RngCore + rand::CryptoRng>(&self, rng: &mut R) -> Self::F;
+    fn rand<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F;
 }
 
 /// Implement the [Group] trait by using group elements of type [BigUint](num_bigint::BigUint).
@@ -129,7 +130,7 @@ impl Group for SchnorrGroup {
         BigUint::from_bytes_le(bytes)
     }
 
-    fn rand<R: rand::RngCore>(&self, rng: &mut R) -> BigUint {
+    fn rand<R: RngCore>(&self, rng: &mut R) -> BigUint {
         use num_bigint::RandBigInt;
         rng.gen_biguint_range(&BigUint::from(1u32), &self.q)
     }
