@@ -13,7 +13,7 @@ where
     pub scheme: &'a SignatureScheme<G, H>,
 }
 
-impl<'a, H, G, T> signature::DigestVerifier<H, T> for Verifier<'a, H, G>
+impl<H, G, T> signature::DigestVerifier<H, T> for Verifier<'_, H, G>
 where
     H: Digest,
     G: Group,

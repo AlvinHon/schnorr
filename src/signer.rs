@@ -14,7 +14,7 @@ where
     pub scheme: &'a SignatureScheme<G, H>,
 }
 
-impl<'a, H, G> signature::RandomizedDigestSigner<H, Vec<u8>> for Signer<'a, H, G>
+impl<H, G> signature::RandomizedDigestSigner<H, Vec<u8>> for Signer<'_, H, G>
 where
     H: Digest,
     G: Group,
