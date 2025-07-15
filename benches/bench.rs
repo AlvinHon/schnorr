@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use num_bigint::BigUint;
+use dashu::integer::UBig;
 use p256::elliptic_curve::PrimeField;
 use schnorr_rs::{
     identification::Identification, PublicKey, SchnorrGroup, SchnorrP256Group, SignatureScheme,
@@ -352,7 +352,7 @@ fn setup_for_identification_tests() -> (
     SignatureScheme<SchnorrP256Group, Sha256>,
     PublicKey<SchnorrP256Group>,
     SigningKey<SchnorrP256Group>,
-    BigUint,
+    UBig,
 ) {
     let protocol = schnorr_rs::identification_protocol(
         "170635838606142236835668582024526088839118584923917947104881361096573663241835425726334688227245750988284470206339098086628427330905070264154820140913414479495481939755079707182465802484020944276739164978360438985178968038653749024959908959885446602817557541340750337331201115159158715982367397805202392369959",
@@ -362,7 +362,7 @@ fn setup_for_identification_tests() -> (
     .unwrap();
     let (signature_scheme, public_key, signing_key) = test_signature_scheme_p256();
 
-    let i = BigUint::from(123u32);
+    let i = UBig::from(123u32);
 
     (protocol, signature_scheme, public_key, signing_key, i)
 }

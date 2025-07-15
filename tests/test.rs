@@ -1,4 +1,4 @@
-use num_bigint::BigUint;
+use dashu::integer::UBig;
 
 use schnorr_rs::{Signer, Verifier};
 use sha2::Sha256;
@@ -33,7 +33,7 @@ fn test_schnorr_identification_protocol() {
         key: &public_key,
     };
 
-    let i = BigUint::from(123u32);
+    let i = UBig::from(123u32);
 
     // user interacts with issuer to get a certificate
     let (iss_secret, iss_params) = protocol.issue_params(rng, i.clone());
