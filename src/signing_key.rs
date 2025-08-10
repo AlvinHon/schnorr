@@ -31,7 +31,7 @@ impl<G: Group> TryFrom<&[u8]> for SigningKey<G> {
         }
 
         let d_bytes = &value[4..];
-        let d = G::deserialize_scalar(d_bytes);
+        let d = G::deserialize_scalar(d_bytes).map_err(|_| ())?;
         Ok(SigningKey { d })
     }
 }

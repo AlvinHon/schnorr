@@ -52,7 +52,7 @@ impl<G: Group> TryFrom<&[u8]> for PublicKey<G> {
         }
 
         let p_bytes = &value[4..];
-        let p = G::deserialize_point(p_bytes);
+        let p = G::deserialize_point(p_bytes).map_err(|_| ())?;
         Ok(PublicKey { p })
     }
 }

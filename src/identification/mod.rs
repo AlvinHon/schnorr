@@ -41,6 +41,7 @@ pub struct Identification<G: Group> {
 }
 
 impl<G: Group> Identification<G> {
+    /// Generate a random identity (i) for the identification protocol.
     pub fn random_identity<R: RngCore + CryptoRng>(&self, rng: &mut R) -> G::P {
         self.group.random_element(rng)
     }

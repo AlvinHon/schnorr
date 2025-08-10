@@ -12,6 +12,7 @@ pub use p256::SchnorrP256Group;
 pub trait Group: Clone {
     type P: Clone;
     type F: Clone;
+    type DeserializeError;
 
     fn generator(&self) -> Self::P;
 
@@ -37,8 +38,8 @@ pub trait Group: Clone {
     fn serialize_scalar(scalar: &Self::F) -> Vec<u8>;
     fn serialize_point(point: &Self::P) -> Vec<u8>;
 
-    fn deserialize_scalar(bytes: &[u8]) -> Self::F;
-    fn deserialize_point(bytes: &[u8]) -> Self::P;
+    fn deserialize_scalar(bytes: &[u8]) -> Result<Self::F, Self::DeserializeError>;
+    fn deserialize_point(bytes: &[u8]) -> Result<Self::P, Self::DeserializeError>;
 
     // randomness function
 
@@ -75,6 +76,7 @@ impl SchnorrGroup {
 impl Group for SchnorrGroup {
     type P = BigUint;
     type F = BigUint;
+    type DeserializeError = ();
 
     fn generator(&self) -> Self::P {
         self.a.clone()
@@ -123,12 +125,18 @@ impl Group for SchnorrGroup {
         point.to_bytes_le()
     }
 
-    fn deserialize_scalar(bytes: &[u8]) -> BigUint {
-        BigUint::from_bytes_le(bytes)
+    fn deserialize_scalar(bytes: &[u8]) -> Result<BigUint, ()> {
+        if bytes.is_empty() {
+            return Err(());
+        }
+        Ok(BigUint::from_bytes_le(bytes))
     }
 
-    fn deserialize_point(bytes: &[u8]) -> BigUint {
-        BigUint::from_bytes_le(bytes)
+    fn deserialize_point(bytes: &[u8]) -> Result<BigUint, ()> {
+        if bytes.is_empty() {
+            return Err(());
+        }
+        Ok(BigUint::from_bytes_le(bytes))
     }
 
     fn random_scalar<R: RngCore>(&self, rng: &mut R) -> BigUint {

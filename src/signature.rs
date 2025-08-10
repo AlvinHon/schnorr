@@ -48,8 +48,8 @@ impl<G: Group> TryFrom<&[u8]> for Signature<G> {
         let s_bytes = &value[4..4 + s_len];
         let e_bytes = &value[8 + s_len..];
 
-        let s = G::deserialize_scalar(s_bytes);
-        let e = G::deserialize_scalar(e_bytes);
+        let s = G::deserialize_scalar(s_bytes).map_err(|_| ())?;
+        let e = G::deserialize_scalar(e_bytes).map_err(|_| ())?;
         Ok(Signature { s, e })
     }
 }
