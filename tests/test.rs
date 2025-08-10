@@ -1,5 +1,3 @@
-use num_bigint::BigUint;
-
 use schnorr_rs::{Signer, Verifier};
 use sha2::Sha256;
 
@@ -33,7 +31,7 @@ fn test_schnorr_identification_protocol() {
         key: &public_key,
     };
 
-    let i = BigUint::from(123u32);
+    let i = protocol.random_identity(rng);
 
     // user interacts with issuer to get a certificate
     let (iss_secret, iss_params) = protocol.issue_params(rng, i.clone());
@@ -54,7 +52,6 @@ fn test_schnorr_identification_protocol() {
 /// Test Schnorr Identification Protocol based on elliptic curve cryptography
 #[test]
 fn test_schnorr_identification_protocol_ec() {
-    use std::ops::Mul;
     let rng = &mut rand::thread_rng();
 
     // setup parameters and identity
@@ -71,7 +68,7 @@ fn test_schnorr_identification_protocol_ec() {
         key: &public_key,
     };
 
-    let i = p256::AffinePoint::GENERATOR.mul(p256::NonZeroScalar::random(rng).as_ref());
+    let i = protocol.random_identity(rng);
 
     // user interacts with issuer to get a certificate
     let (iss_secret, iss_params) = protocol.issue_params(rng, i.clone());

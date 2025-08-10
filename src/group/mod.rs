@@ -42,7 +42,8 @@ pub trait Group: Clone {
 
     // randomness function
 
-    fn rand<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F;
+    fn random_scalar<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F;
+    fn random_element<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::P;
 }
 
 /// Implement the [Group] trait by using group elements of type [BigUint](num_bigint::BigUint).
@@ -130,7 +131,11 @@ impl Group for SchnorrGroup {
         BigUint::from_bytes_le(bytes)
     }
 
-    fn rand<R: RngCore>(&self, rng: &mut R) -> BigUint {
+    fn random_scalar<R: RngCore>(&self, rng: &mut R) -> BigUint {
+        use num_bigint::RandBigInt;
+        rng.gen_biguint_range(&BigUint::from(1u32), &self.q)
+    }
+    fn random_element<R: RngCore>(&self, rng: &mut R) -> BigUint {
         use num_bigint::RandBigInt;
         rng.gen_biguint_range(&BigUint::from(1u32), &self.q)
     }

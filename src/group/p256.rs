@@ -89,7 +89,11 @@ impl Group for SchnorrP256Group {
             .unwrap()
     }
 
-    fn rand<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F {
+    fn random_scalar<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F {
         *p256::NonZeroScalar::random(rng).as_ref()
+    }
+    fn random_element<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::P {
+        self.generator()
+            .mul(p256::NonZeroScalar::random(rng).as_ref())
     }
 }
