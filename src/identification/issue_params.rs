@@ -9,6 +9,14 @@ pub struct IssueParams<G: Group> {
     pub(in crate::identification) v: G::P,
 }
 
+impl<G: Group> IssueParams<G> {
+    /// The identity specified in the parameters.
+    #[inline]
+    pub fn identity(&self) -> G::P {
+        self.i.clone()
+    }
+}
+
 impl<G: Group> Serialize for IssueParams<G> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let i = G::serialize_point(&self.i);

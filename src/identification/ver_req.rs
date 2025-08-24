@@ -11,6 +11,14 @@ pub struct VerificationRequest<G: Group> {
     pub(in crate::identification) y: G::P,
 }
 
+impl<G: Group> VerificationRequest<G> {
+    /// The identity specified in the request.
+    #[inline]
+    pub fn identity(&self) -> G::P {
+        self.certificate.identity()
+    }
+}
+
 impl<G: Group> Serialize for VerificationRequest<G> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let i = G::serialize_point(&self.certificate.params.i);

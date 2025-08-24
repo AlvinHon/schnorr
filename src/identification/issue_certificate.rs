@@ -13,8 +13,9 @@ pub struct IssueCertificate<G: Group> {
 
 impl<G: Group> IssueCertificate<G> {
     /// The identity specified in the certificate.
+    #[inline]
     pub fn identity(&self) -> G::P {
-        self.params.i.clone()
+        self.params.identity()
     }
 }
 
