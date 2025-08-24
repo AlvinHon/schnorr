@@ -7,7 +7,7 @@ use super::Group;
 use std::ops::{Mul, Neg};
 
 /// Schnorr group over P-256 curve, implements the [Group](super::Group) trait by using group elements of types [p256::ProjectivePoint] and [p256::Scalar].
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SchnorrP256Group;
 
 impl Group for SchnorrP256Group {

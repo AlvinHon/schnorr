@@ -48,7 +48,7 @@ pub trait Group: Clone {
 }
 
 /// Implement the [Group] trait by using group elements of type [BigUint](num_bigint::BigUint).
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SchnorrGroup {
     // p is a large prime
     // q is a large prime divisor of p-1

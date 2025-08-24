@@ -2,10 +2,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::Group;
 
-/// Signing key for the Schnorr Signature Scheme.
+/// Public key for the Schnorr Signature Scheme.
 #[derive(PartialEq, Eq, Clone)]
 pub struct PublicKey<G: Group> {
     pub(crate) p: G::P,
+}
+
+impl<G: Group> PublicKey<G> {
+    /// The only group element that represents the public key.
+    /// It is basically the p from the key pair (d, p) where p = a^(-d) mod P.
+    #[inline]
+    pub fn element(&self) -> &G::P {
+        &self.p
+    }
 }
 
 impl<G: Group> Serialize for PublicKey<G> {
@@ -13,8 +22,7 @@ impl<G: Group> Serialize for PublicKey<G> {
     where
         S: serde::Serializer,
     {
-        let bytes = Vec::<u8>::from(self);
-        bytes.serialize(serializer)
+        Vec::<u8>::from(self).serialize(serializer)
     }
 }
 
@@ -23,7 +31,7 @@ impl<'de, G: Group> Deserialize<'de> for PublicKey<G> {
     where
         D: serde::Deserializer<'de>,
     {
-        let bytes = Vec::<u8>::deserialize(deserializer)?;
+        let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
         PublicKey::try_from(bytes.as_slice())
             .map_err(|_| serde::de::Error::custom("Invalid public key"))
     }
@@ -31,9 +39,7 @@ impl<'de, G: Group> Deserialize<'de> for PublicKey<G> {
 
 impl<G: Group> From<&PublicKey<G>> for Vec<u8> {
     fn from(public_key: &PublicKey<G>) -> Self {
-        let p_bytes = G::serialize_point(&public_key.p);
-        let p_bytes_len = p_bytes.len();
-        [(p_bytes_len as u32).to_le_bytes().to_vec(), p_bytes].concat()
+        G::serialize_point(&public_key.p)
     }
 }
 
@@ -41,18 +47,26 @@ impl<G: Group> TryFrom<&[u8]> for PublicKey<G> {
     type Error = ();
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() < 4 {
-            return Err(());
-        }
-
-        let p_len = u32::from_le_bytes(value[..4].try_into().unwrap()) as usize;
-
-        if value.len() != 4 + p_len {
-            return Err(());
-        }
-
-        let p_bytes = &value[4..];
-        let p = G::deserialize_point(p_bytes).map_err(|_| ())?;
+        let p = G::deserialize_point(value).map_err(|_| ())?;
         Ok(PublicKey { p })
     }
+}
+
+#[test]
+fn test_public_key_serialization() {
+    let rng = &mut rand::thread_rng();
+    let group = crate::group::p256::SchnorrP256Group;
+    let pk = PublicKey::<crate::group::p256::SchnorrP256Group> {
+        p: group.random_element(rng),
+    };
+    let serialized = bincode::serde::encode_to_vec(&pk, bincode::config::legacy()).unwrap();
+    let (deserialized, _): (PublicKey<crate::group::p256::SchnorrP256Group>, _) =
+        bincode::serde::decode_from_slice(&serialized, bincode::config::legacy()).unwrap();
+    assert_eq!(pk.p, deserialized.p);
+
+    // Test From<&PublicKey> for Vec<u8>
+    let pk_bytes: Vec<u8> = (&pk).into();
+    let deserialized_from_bytes: PublicKey<crate::group::p256::SchnorrP256Group> =
+        PublicKey::try_from(pk_bytes.as_slice()).unwrap();
+    assert!(pk == deserialized_from_bytes);
 }

@@ -25,9 +25,11 @@ where
         digest: H,
     ) -> Result<Vec<u8>, signature::Error> {
         let message = digest.finalize();
-        Ok(self
-            .scheme
-            .sign(rng, self.key, self.pub_key, message.as_slice())
-            .into())
+        Ok(Vec::<u8>::from(&self.scheme.sign(
+            rng,
+            self.key,
+            self.pub_key,
+            message.as_slice(),
+        )))
     }
 }
