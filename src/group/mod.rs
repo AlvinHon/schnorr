@@ -145,6 +145,6 @@ impl Group for SchnorrGroup {
     }
     fn random_element<R: RngCore>(&self, rng: &mut R) -> BigUint {
         use num_bigint::RandBigInt;
-        rng.gen_biguint_range(&BigUint::from(1u32), &self.q)
+        rng.gen_biguint_range(&BigUint::from(1u32), &self.p)
     }
 }
