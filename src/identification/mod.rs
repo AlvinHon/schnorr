@@ -41,6 +41,11 @@ pub struct Identification<G: Group> {
 }
 
 impl<G: Group> Identification<G> {
+    /// Generate a random identity (i) for the identification protocol.
+    pub fn random_identity<R: RngCore + CryptoRng>(&self, rng: &mut R) -> G::P {
+        self.group.random_element(rng)
+    }
+
     /// Issue parameters for identification protocol.
     /// Generate a random number e and calculate v = a^(-e) mod p.
     /// Return the issue secret and issue parameters.
@@ -51,7 +56,7 @@ impl<G: Group> Identification<G> {
         rng: &mut R,
         i: G::P,
     ) -> (IssueSecret<G>, IssueParams<G>) {
-        let e = self.group.rand(rng);
+        let e = self.group.random_scalar(rng);
         let neg_e = self.group.neg(&e);
         // v = a^(-e) mod p
         let v = self.group.mul_by_generator(&neg_e);
@@ -92,7 +97,7 @@ impl<G: Group> Identification<G> {
         rng: &mut R,
         certificate: IssueCertificate<G>,
     ) -> (VerificationRequestSecret<G>, VerificationRequest<G>) {
-        let k = self.group.rand(rng);
+        let k = self.group.random_scalar(rng);
         // y = a^k mod p
         let y = self.group.mul_by_generator(&k);
 
@@ -132,7 +137,7 @@ impl<G: Group> Identification<G> {
             .verify_digest(digest, &request.certificate.s)
             .ok()
             .map(|_| VerificationChallenge {
-                r: self.group.rand(rng),
+                r: self.group.random_scalar(rng),
             })
     }
 

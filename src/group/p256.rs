@@ -7,12 +7,13 @@ use super::Group;
 use std::ops::{Mul, Neg};
 
 /// Schnorr group over P-256 curve, implements the [Group](super::Group) trait by using group elements of types [p256::ProjectivePoint] and [p256::Scalar].
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SchnorrP256Group;
 
 impl Group for SchnorrP256Group {
     type P = p256::ProjectivePoint;
     type F = p256::Scalar;
+    type DeserializeError = ();
 
     fn generator(&self) -> Self::P {
         use p256::elliptic_curve::Group;
@@ -66,16 +67,16 @@ impl Group for SchnorrP256Group {
         point.to_encoded_point(false).as_bytes().to_vec()
     }
 
-    fn deserialize_scalar(bytes: &[u8]) -> Self::F {
+    fn deserialize_scalar(bytes: &[u8]) -> Result<Self::F, ()> {
         use p256::FieldBytes;
         let d_bytes = FieldBytes::from_slice(bytes);
-        *p256::NonZeroScalar::from_repr(*d_bytes)
+        p256::NonZeroScalar::from_repr(*d_bytes)
             .into_option()
-            .unwrap()
-            .as_ref()
+            .ok_or(())
+            .map(|s| *s)
     }
 
-    fn deserialize_point(bytes: &[u8]) -> Self::P {
+    fn deserialize_point(bytes: &[u8]) -> Result<Self::P, ()> {
         use p256::elliptic_curve::sec1::FromEncodedPoint;
         use p256::NistP256;
 
@@ -86,10 +87,14 @@ impl Group for SchnorrP256Group {
                     .into_option()
                     .ok_or(())
             })
-            .unwrap()
+            .map_err(|_| ())
     }
 
-    fn rand<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F {
+    fn random_scalar<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F {
         *p256::NonZeroScalar::random(rng).as_ref()
+    }
+    fn random_element<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::P {
+        self.generator()
+            .mul(p256::NonZeroScalar::random(rng).as_ref())
     }
 }

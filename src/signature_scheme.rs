@@ -34,7 +34,7 @@ where
         rng: &mut R,
     ) -> (SigningKey<G>, PublicKey<G>) {
         // p = a^(-d) mod p
-        let d = self.group.rand(rng);
+        let d = self.group.random_scalar(rng);
         let neg_d = self.group.neg(&d);
         let p = self.group.mul_by_generator(&neg_d);
         (SigningKey { d }, PublicKey { p })
@@ -53,7 +53,7 @@ where
         pub_key: &PublicKey<G>,
         message: M,
     ) -> Signature<G> {
-        let k = self.group.rand(rng);
+        let k = self.group.random_scalar(rng);
         // r = a^k mod p
         let r = self.group.mul_by_generator(&k);
         // e = H(r || p || m) // Modification on original scheme: adding p to prevent existential forgery

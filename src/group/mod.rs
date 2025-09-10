@@ -13,6 +13,7 @@ pub use p256::SchnorrP256Group;
 pub trait Group: Clone {
     type P: Clone;
     type F: Clone;
+    type DeserializeError;
 
     fn generator(&self) -> Self::P;
 
@@ -38,16 +39,17 @@ pub trait Group: Clone {
     fn serialize_scalar(scalar: &Self::F) -> Vec<u8>;
     fn serialize_point(point: &Self::P) -> Vec<u8>;
 
-    fn deserialize_scalar(bytes: &[u8]) -> Self::F;
-    fn deserialize_point(bytes: &[u8]) -> Self::P;
+    fn deserialize_scalar(bytes: &[u8]) -> Result<Self::F, Self::DeserializeError>;
+    fn deserialize_point(bytes: &[u8]) -> Result<Self::P, Self::DeserializeError>;
 
     // randomness function
 
-    fn rand<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F;
+    fn random_scalar<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F;
+    fn random_element<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::P;
 }
 
-/// Implement the [Group] trait by using group elements of type [UBig](dashu::integer::UBig).
-#[derive(Clone, Serialize, Deserialize)]
+/// Implement the [Group] trait by using group elements of type [BigUint](num_bigint::BigUint).
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SchnorrGroup {
     // p is a large prime
     // q is a large prime divisor of p-1
@@ -77,6 +79,7 @@ impl SchnorrGroup {
 impl Group for SchnorrGroup {
     type P = UBig;
     type F = UBig;
+    type DeserializeError = ();
 
     fn generator(&self) -> Self::P {
         self.a.clone()
@@ -133,15 +136,25 @@ impl Group for SchnorrGroup {
         point.to_le_bytes().to_vec()
     }
 
-    fn deserialize_scalar(bytes: &[u8]) -> UBig {
-        UBig::from_le_bytes(bytes)
+    fn deserialize_scalar(bytes: &[u8]) -> Result<UBig, ()> {
+        if bytes.is_empty() {
+            return Err(());
+        }
+        Ok(UBig::from_le_bytes(bytes))
     }
 
-    fn deserialize_point(bytes: &[u8]) -> UBig {
-        UBig::from_le_bytes(bytes)
+    fn deserialize_point(bytes: &[u8]) -> Result<UBig, ()> {
+        if bytes.is_empty() {
+            return Err(());
+        }
+        Ok(UBig::from_le_bytes(bytes))
     }
 
-    fn rand<R: Rng>(&self, rng: &mut R) -> UBig {
+    fn random_scalar<R: Rng>(&self, rng: &mut R) -> UBig {
         rng.gen_range(UBig::ONE..self.q.clone())
+    }
+
+    fn random_element<R: Rng>(&self, rng: &mut R) -> UBig {
+        rng.gen_range(UBig::ONE..self.p.clone())
     }
 }
