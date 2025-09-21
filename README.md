@@ -8,7 +8,7 @@ This repository contains the rust implementation of various Schnorr protocols by
 It is a light-weight library that implements the protocol in simpliest way where minimal number of APIs are used, though the protocols are highly interactive.
 While there are some limitations for you to consider before using it:
 - Uses [dashu](https://crates.io/crates/dashu).
-- when using ECC-based protocol, the library picks the curve [p256](https://crates.io/crates/p256) (a.k.a `secp256r1`, `prime256v1`) to use.
+- Uses a bare implementation of P256 curve which also depends on [dashu](https://crates.io/crates/dashu).
 
 Note: this repository has not been thoroughly audited. Please take your own risk if you use it in production environment.
 

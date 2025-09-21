@@ -1,8 +1,7 @@
 //! This module contains the definition of the `Group` trait and the `SchnorrGroup` struct.
 
 use dashu::integer::{fast_div::ConstDivisor, UBig};
-use rand::Rng;
-use rand_core::{CryptoRng, RngCore};
+use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -44,8 +43,8 @@ pub trait Group: Clone {
 
     // randomness function
 
-    fn random_scalar<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F;
-    fn random_element<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::P;
+    fn random_scalar<R: RngCore>(&self, rng: &mut R) -> Self::F;
+    fn random_element<R: RngCore>(&self, rng: &mut R) -> Self::P;
 }
 
 /// Implement the [Group] trait by using group elements of type [BigUint](num_bigint::BigUint).
@@ -150,11 +149,14 @@ impl Group for SchnorrGroup {
         Ok(UBig::from_le_bytes(bytes))
     }
 
-    fn random_scalar<R: Rng>(&self, rng: &mut R) -> UBig {
-        rng.gen_range(UBig::ONE..self.q.clone())
+    fn random_scalar<R: RngCore>(&self, rng: &mut R) -> UBig {
+        let mut buf = self.q.to_le_bytes().to_vec();
+        rng.fill_bytes(&mut buf);
+        UBig::from_le_bytes(&buf) % &self.q
     }
 
-    fn random_element<R: Rng>(&self, rng: &mut R) -> UBig {
-        rng.gen_range(UBig::ONE..self.p.clone())
+    fn random_element<R: RngCore>(&self, rng: &mut R) -> UBig {
+        let scalar = self.random_scalar(rng);
+        self.mul_by_generator(&scalar)
     }
 }

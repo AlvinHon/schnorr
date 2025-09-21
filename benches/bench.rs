@@ -2,13 +2,11 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use dashu::integer::UBig;
-use p256::elliptic_curve::PrimeField;
 use schnorr_rs::{
-    identification::Identification, PublicKey, SchnorrGroup, SchnorrP256Group, SignatureScheme,
-    Signer, SigningKey, Verifier,
+    identification::Identification, Group, PublicKey, SchnorrGroup, SchnorrP256Group,
+    SignatureScheme, Signer, SigningKey, Verifier,
 };
 use sha2::Sha256;
-use std::ops::Mul;
 
 criterion_main!(signature_scheme, identification_protocol);
 
@@ -349,9 +347,9 @@ fn bench_identification_verification_with_ec(c: &mut Criterion) {
 
 fn setup_for_identification_tests() -> (
     Identification<SchnorrGroup>,
-    SignatureScheme<SchnorrP256Group, Sha256>,
-    PublicKey<SchnorrP256Group>,
-    SigningKey<SchnorrP256Group>,
+    SignatureScheme<SchnorrGroup, Sha256>,
+    PublicKey<SchnorrGroup>,
+    SigningKey<SchnorrGroup>,
     UBig,
 ) {
     let protocol = schnorr_rs::identification_protocol(
@@ -360,7 +358,7 @@ fn setup_for_identification_tests() -> (
         "144213202463066458950689095305115948799436864106778035179311009761777898846700415257265179855055640783875383274707858827879036088093691306491953244054442062637113833957623609837630797581860524549453053884680615629934658560796659252072641537163117203253862736053101508959059343335640009185013786003173143740486",
     )
     .unwrap();
-    let (signature_scheme, public_key, signing_key) = test_signature_scheme_p256();
+    let (signature_scheme, public_key, signing_key) = test_signature_scheme();
 
     let i = UBig::from(123u32);
 
@@ -372,16 +370,12 @@ fn setup_for_identification_ec_tests() -> (
     SignatureScheme<SchnorrP256Group, Sha256>,
     PublicKey<SchnorrP256Group>,
     SigningKey<SchnorrP256Group>,
-    p256::ProjectivePoint,
+    schnorr_rs::group::p256::Point,
 ) {
     let protocol = schnorr_rs::identification_protocol_p256();
     let (signature_scheme, public_key, signing_key) = test_signature_scheme_p256();
 
-    let i = p256::AffinePoint::GENERATOR.mul(
-        p256::NonZeroScalar::new(p256::Scalar::from_u128(123))
-            .unwrap()
-            .as_ref(),
-    );
+    let i = SchnorrP256Group.mul_by_generator(&UBig::from(123u32));
 
     (protocol, signature_scheme, public_key, signing_key, i)
 }
@@ -399,30 +393,30 @@ fn test_signature_scheme() -> (
     .unwrap();
     let (public_key, _): (PublicKey<SchnorrGroup>, _) = bincode::serde::decode_from_slice(
         &[
-            132, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0, 24, 180, 28, 68, 59, 14, 97, 98, 29, 83, 161,
-            62, 6, 108, 187, 55, 62, 203, 67, 87, 141, 73, 109, 144, 17, 38, 236, 203, 41, 180,
-            143, 77, 251, 158, 254, 103, 165, 249, 150, 29, 48, 183, 217, 202, 246, 233, 105, 99,
-            232, 186, 32, 2, 120, 100, 78, 242, 238, 198, 141, 162, 27, 163, 236, 106, 168, 27, 57,
-            75, 244, 95, 194, 43, 157, 247, 125, 85, 16, 160, 7, 35, 214, 141, 33, 170, 231, 170,
-            84, 127, 122, 63, 110, 0, 15, 197, 135, 226, 65, 106, 252, 77, 80, 90, 161, 118, 78,
-            25, 168, 238, 100, 158, 91, 123, 87, 227, 35, 97, 55, 239, 102, 192, 52, 17, 0, 164, 1,
-            212, 6, 107,
+            128, 123, 67, 16, 235, 80, 40, 118, 118, 112, 238, 216, 120, 1, 82, 238, 22, 116, 155,
+            195, 225, 229, 77, 193, 61, 102, 212, 68, 166, 26, 217, 77, 221, 31, 55, 92, 0, 82,
+            131, 151, 138, 222, 112, 118, 167, 233, 151, 31, 15, 66, 149, 146, 177, 186, 72, 148,
+            153, 56, 27, 43, 7, 34, 181, 149, 136, 206, 126, 101, 84, 2, 215, 53, 67, 101, 111,
+            176, 230, 141, 108, 229, 217, 170, 42, 127, 218, 217, 231, 63, 95, 153, 153, 18, 34,
+            107, 41, 187, 50, 37, 55, 193, 108, 30, 72, 42, 246, 113, 15, 42, 67, 73, 5, 246, 177,
+            122, 29, 71, 232, 151, 205, 211, 83, 177, 61, 212, 167, 214, 189, 242, 240,
         ],
-        bincode::config::legacy(),
+        bincode::config::standard(),
     )
     .unwrap();
 
     let (signing_key, _): (SigningKey<SchnorrGroup>, _) = bincode::serde::decode_from_slice(
         &[
-            32, 0, 0, 0, 0, 0, 0, 0, 220, 167, 8, 158, 208, 13, 116, 68, 184, 232, 154, 120, 3, 29,
-            178, 86, 37, 47, 152, 95, 96, 243, 171, 119, 204, 21, 31, 178, 7, 57, 252, 86, 91, 112,
-            64, 149, 89, 117, 74, 175, 69, 75, 36, 131, 27, 102, 239, 168, 50, 80, 89, 117, 107,
-            50, 124, 3, 33, 250, 104, 154, 85, 77, 74, 222, 105, 6, 207, 176, 58, 41, 216, 187, 65,
-            123, 72, 18, 171, 255, 130, 20, 63, 131, 98, 35, 65, 128, 204, 115, 158, 156, 134, 165,
-            146, 17, 59, 204, 211, 128, 16, 233, 72, 140, 248, 54, 2, 171, 12, 43, 39, 36, 48, 162,
-            161, 29, 118, 161, 140, 234, 107, 243, 46, 120, 97, 126, 167, 10, 225, 110,
+            132, 128, 0, 0, 0, 213, 162, 127, 147, 78, 146, 205, 225, 138, 137, 127, 243, 45, 36,
+            96, 155, 156, 168, 249, 186, 145, 158, 250, 127, 185, 156, 83, 161, 96, 86, 149, 128,
+            117, 218, 69, 169, 177, 207, 54, 211, 61, 11, 136, 173, 84, 162, 252, 13, 98, 89, 12,
+            223, 111, 41, 173, 51, 4, 156, 174, 124, 198, 110, 140, 145, 12, 139, 127, 41, 66, 190,
+            231, 120, 247, 246, 31, 139, 13, 235, 113, 83, 124, 249, 216, 50, 113, 138, 234, 138,
+            23, 166, 144, 206, 141, 0, 112, 221, 192, 134, 61, 76, 178, 190, 49, 223, 195, 253, 78,
+            12, 174, 213, 206, 131, 158, 46, 183, 89, 166, 181, 27, 46, 26, 153, 13, 118, 143, 161,
+            102, 3,
         ],
-        bincode::config::legacy(),
+        bincode::config::standard(),
     )
     .unwrap();
 
@@ -438,20 +432,20 @@ fn test_signature_scheme_p256() -> (
 
     let (public_key, _): (PublicKey<SchnorrP256Group>, _) = bincode::serde::decode_from_slice(
         &[
-            69, 0, 0, 0, 0, 0, 0, 0, 65, 0, 0, 0, 4, 208, 37, 170, 124, 248, 211, 207, 92, 33, 54,
-            142, 113, 110, 214, 54, 138, 234, 216, 159, 138, 236, 30, 99, 219, 118, 0, 241, 138,
-            234, 36, 170, 55, 125, 55, 15, 102, 140, 103, 242, 115, 63, 80, 81, 171, 211, 85, 10,
-            36, 223, 193, 77, 105, 41, 159, 245, 137, 70, 31, 45, 78, 66, 49, 149, 197,
+            64, 155, 120, 94, 43, 128, 32, 254, 105, 64, 68, 157, 28, 85, 83, 0, 28, 7, 123, 204,
+            175, 166, 233, 81, 234, 220, 115, 105, 107, 194, 75, 97, 109, 113, 124, 166, 120, 242,
+            100, 142, 0, 90, 249, 1, 226, 14, 95, 196, 138, 133, 81, 212, 68, 141, 255, 239, 224,
+            29, 0, 147, 107, 107, 212, 81, 69,
         ],
-        bincode::config::legacy(),
+        bincode::config::standard(),
     )
     .unwrap();
     let (signing_key, _): (SigningKey<SchnorrP256Group>, _) = bincode::serde::decode_from_slice(
         &[
-            40, 189, 24, 229, 3, 47, 52, 152, 4, 125, 15, 44, 32, 43, 190, 34, 141, 24, 205, 87,
-            37, 130, 169, 105, 209, 96, 147, 140, 165, 196, 65, 200,
+            36, 32, 0, 0, 0, 7, 98, 135, 31, 215, 62, 160, 11, 193, 182, 54, 227, 230, 18, 94, 202,
+            10, 104, 240, 56, 9, 88, 141, 68, 80, 223, 109, 239, 127, 161, 83, 171,
         ],
-        bincode::config::legacy(),
+        bincode::config::standard(),
     )
     .unwrap();
 
