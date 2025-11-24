@@ -15,7 +15,8 @@ crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 digest = "0.10.7"
-dashu = {version="0.4.2", features=["rand", "serde"]}
+dashu-base = "0.4.1"
+dashu-int = {version="0.4.1", features=["rand", "serde"]}
 getrandom = {version = "0.2", features=["js"]}
 rand_core = "0.6"
 serde = { version = "1.0.219", features = ["derive"] }

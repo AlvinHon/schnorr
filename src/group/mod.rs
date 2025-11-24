@@ -1,6 +1,6 @@
 //! This module contains the definition of the `Group` trait and the `SchnorrGroup` struct.
 
-use dashu::integer::{fast_div::ConstDivisor, UBig};
+use dashu_int::{fast_div::ConstDivisor, UBig};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;

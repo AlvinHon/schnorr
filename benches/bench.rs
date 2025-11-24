@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use dashu::integer::UBig;
+use dashu_int::UBig;
 use schnorr_rs::{
     identification::Identification, Group, PublicKey, SchnorrGroup, SchnorrP256Group,
     SignatureScheme, Signer, SigningKey, Verifier,

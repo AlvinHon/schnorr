@@ -1,9 +1,7 @@
 //! This module contains the definition of the struct `SchnorrP256Group` that implements trait `Group`.
 
-use dashu::{
-    base::ExtendedGcd,
-    integer::{IBig, UBig},
-};
+use dashu_base::ExtendedGcd;
+use dashu_int::{IBig, UBig};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
@@ -332,7 +330,7 @@ fn scalar_multiply(scalar: &UBig, point: &Point) -> Point {
 mod test {
     use super::*;
 
-    use dashu::integer::UBig;
+    use dashu_int::UBig;
     use p256::{elliptic_curve::group::Group, Scalar};
     use rand::RngCore;
     use std::ops::Mul;
