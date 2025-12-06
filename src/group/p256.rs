@@ -1,7 +1,10 @@
 //! This module contains the definition of the struct `SchnorrP256Group` that implements trait `Group`.
 
+use std::str::FromStr;
+
 use dashu_base::ExtendedGcd;
 use dashu_int::{IBig, UBig};
+use lazy_static::lazy_static;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
@@ -27,9 +30,11 @@ impl SchnorrP256Group {
         if point.is_infinity() {
             return true; // The point at infinity is on the curve
         }
-        let lhs = (point.y.clone() * point.y.clone()) % &P;
-        let rhs =
-            (point.x.clone() * point.x.clone() * point.x.clone() + &A * point.x.clone() + &B) % &P;
+        let lhs = (point.y.clone() * point.y.clone()) % P.clone();
+        let rhs = (point.x.clone() * point.x.clone() * point.x.clone()
+            + A.clone() * point.x.clone()
+            + B.clone())
+            % P.clone();
         lhs == rhs
     }
 }
@@ -56,14 +61,14 @@ impl Group for SchnorrP256Group {
     }
 
     fn add_mul_scalar(&self, s1: &Self::F, s2: &Self::F, s3: &Self::F) -> Self::F {
-        (s1 + s2 * s3) % &N
+        (s1 + s2 * s3) % N.clone()
     }
 
     fn neg(&self, scalar: &Self::F) -> Self::F {
         if scalar.is_zero() {
             UBig::ZERO
         } else {
-            (&N - scalar) % &N
+            (N.clone() - scalar) % N.clone()
         }
     }
 
@@ -111,7 +116,7 @@ impl Group for SchnorrP256Group {
     fn random_scalar<R: RngCore>(&self, rng: &mut R) -> Self::F {
         let mut bytes = [0u8; 32]; // because order N is 256 bits
         rng.fill_bytes(&mut bytes);
-        UBig::from_le_bytes(&bytes) % &N
+        UBig::from_le_bytes(&bytes) % N.clone()
     }
     fn random_element<R: RngCore>(&self, rng: &mut R) -> Self::P {
         let scalar = self.random_scalar(rng);
@@ -121,46 +126,33 @@ impl Group for SchnorrP256Group {
 
 // The parameters for the P-256 curve
 // Ref: https://csrc.nist.gov/pubs/sp/800/186/final
-
-static P: UBig = unsafe {
-    UBig::from_static_words(&[18446744073709551615, 4294967295, 0, 18446744069414584321])
-};
-static A: UBig = unsafe {
-    UBig::from_static_words(&[18446744073709551612, 4294967295, 0, 18446744069414584321])
-};
-static B: UBig = unsafe {
-    UBig::from_static_words(&[
-        4309448131093880907,
-        7285987128567378166,
-        12964664127075681980,
-        6540974713487397863,
-    ])
-};
-static GX: UBig = unsafe {
-    UBig::from_static_words(&[
-        17627433388654248598,
-        8575836109218198432,
-        17923454489921339634,
-        7716867327612699207,
-    ])
-};
-static GY: UBig = unsafe {
-    UBig::from_static_words(&[
-        14678990851816772085,
-        3156516839386865358,
-        10297457778147434006,
-        5756518291402817435,
-    ])
-};
-static N: UBig = unsafe {
-    UBig::from_static_words(&[
-        17562291160714782033,
-        13611842547513532036,
-        18446744073709551615,
-        18446744069414584320,
-    ])
-};
-// static H: UBig = UBig::ONE;
+lazy_static! {
+    static ref P: UBig = UBig::from_str(
+        "115792089210356248762697446949407573530086143415290314195533631308867097853951"
+    )
+    .unwrap();
+    static ref A: UBig = UBig::from_str(
+        "115792089210356248762697446949407573530086143415290314195533631308867097853948"
+    )
+    .unwrap();
+    static ref B: UBig = UBig::from_str(
+        "41058363725152142129326129780047268409114441015993725554835256314039467401291"
+    )
+    .unwrap();
+    static ref GX: UBig = UBig::from_str(
+        "48439561293906451759052585252797914202762949526041747995844080717082404635286"
+    )
+    .unwrap();
+    static ref GY: UBig = UBig::from_str(
+        "36134250956749795798585127919587881956611106672985015071877198253568414405109"
+    )
+    .unwrap();
+    static ref N: UBig = UBig::from_str(
+        "115792089210356248762697446949407573529996955224135760342422259061068512044369"
+    )
+    .unwrap();
+}
+// static H: UBig = UBig::from(1u32);
 
 /// Represents a point on the P-256 elliptic curve.
 #[derive(Debug, Clone, PartialEq)]
@@ -259,51 +251,53 @@ fn add_points(p1: &Point, p2: &Point) -> Point {
         return p1.clone();
     }
 
-    if p1.x == p2.x && p1.y == (&P - &p2.y) % &P {
+    let mod_p = P.clone();
+
+    if p1.x == p2.x && p1.y == (&mod_p - &p2.y) % &mod_p {
         // This means the points are vertical, resulting in the point at infinity
         return Point::infinity();
     }
 
     let lambda = if p1.x == p2.x && p1.y == p2.y {
         // Point doubling
-        let numerator = (UBig::from(3u32) * &p1.x * &p1.x + &A) % &P;
-        let denominator = (UBig::from(2u32) * &p1.y) % &P;
-        (numerator * mod_inverse(&denominator, &P)) % &P
+        let numerator = (UBig::from(3u32) * &p1.x * &p1.x + A.clone()) % &mod_p;
+        let denominator = (UBig::from(2u32) * &p1.y) % &mod_p;
+        (numerator * mod_inverse(&denominator, &mod_p)) % &mod_p
     } else {
         // Point addition
         let numerator = if p2.y < p1.y {
-            (&p2.y + &P - &p1.y) % &P
+            (&p2.y + &mod_p - &p1.y) % &mod_p
         } else {
-            (&p2.y - &p1.y) % &P
+            (&p2.y - &p1.y) % &mod_p
         };
         let denominator = if p2.x < p1.x {
-            (&p2.x + &P - &p1.x) % &P
+            (&p2.x + &mod_p - &p1.x) % &mod_p
         } else {
-            (&p2.x - &p1.x) % &P
+            (&p2.x - &p1.x) % &mod_p
         };
-        (numerator * mod_inverse(&denominator, &P)) % &P
+        (numerator * mod_inverse(&denominator, &mod_p)) % &mod_p
     };
 
     let x3 = {
-        let lambda2 = (&lambda * &lambda) % &P;
-        let x_d = (&p1.x + &p2.x) % &P;
+        let lambda2 = (&lambda * &lambda) % &mod_p;
+        let x_d = (&p1.x + &p2.x) % &mod_p;
 
         if lambda2 < x_d {
-            (&lambda2 + &P - &x_d) % &P
+            (&lambda2 + &mod_p - &x_d) % &mod_p
         } else {
-            (&lambda2 - &x_d) % &P
+            (&lambda2 - &x_d) % &mod_p
         }
     };
     let y3 = {
         let part1 = if p1.x < x3 {
-            (&lambda * (&p1.x + &P - &x3)) % &P
+            (&lambda * (&p1.x + &mod_p - &x3)) % &mod_p
         } else {
-            (&lambda * (&p1.x - &x3)) % &P
+            (&lambda * (&p1.x - &x3)) % &mod_p
         };
         if part1 < p1.y {
-            (&part1 + &P - &p1.y) % &P
+            (&part1 + &mod_p - &p1.y) % &mod_p
         } else {
-            (&part1 - &p1.y) % &P
+            (&part1 - &p1.y) % &mod_p
         }
     };
 
@@ -313,7 +307,7 @@ fn add_points(p1: &Point, p2: &Point) -> Point {
 fn scalar_multiply(scalar: &UBig, point: &Point) -> Point {
     let mut result = Point::infinity();
     let mut temp_point = point.clone();
-    let mut k = scalar % &N;
+    let mut k = scalar % N.clone();
 
     while k > UBig::ZERO {
         if &k % UBig::from(2u32) == UBig::ONE {
@@ -420,8 +414,8 @@ mod test {
     // Montgomery form; i.e., FieldElement(a) = aR mod p, with R = 2^256.
     fn montgomery_form(p: &Point) -> (UBig, UBig) {
         let r = UBig::from(1u32) << 256; // R = 2^256
-        let x_montgomery = (p.x.clone() * r.clone()) % &P;
-        let y_montgomery = (p.y.clone() * r.clone()) % &P;
+        let x_montgomery = (p.x.clone() * r.clone()) % P.clone();
+        let y_montgomery = (p.y.clone() * r.clone()) % P.clone();
         (x_montgomery, y_montgomery)
     }
 

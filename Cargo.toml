@@ -14,10 +14,11 @@ resolver = "2"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-digest = "0.10.7"
 dashu-base = "0.4.1"
 dashu-int = {version="0.4.1", features=["rand", "serde"]}
+digest = "0.10.7"
 getrandom = {version = "0.2", features=["js"]}
+lazy_static = "=1.5.0"
 rand_core = "0.6"
 serde = { version = "1.0.219", features = ["derive"] }
 signature = {version="2.2.0", features=["digest", "rand_core"]}
