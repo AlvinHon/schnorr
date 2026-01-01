@@ -1,3 +1,8 @@
+[![version]][crates.io]
+
+[version]: https://img.shields.io/crates/v/schnorr-rs.svg
+[crates.io]: https://crates.io/crates/schnorr-rs
+
 # Schnorr Protocols
 
 This repository contains the rust implementation of various Schnorr protocols by Dr. [Claus-Peter Schnorr](https://en.wikipedia.org/wiki/Claus_P._Schnorr):
