@@ -1,7 +1,7 @@
 //! This module contains the definition of the `Group` trait and the `SchnorrGroup` struct.
 
-use num_bigint::BigUint;
-use rand_core::{CryptoRng, RngCore};
+use dashu_int::{fast_div::ConstDivisor, UBig};
+use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -43,8 +43,8 @@ pub trait Group: Clone {
 
     // randomness function
 
-    fn random_scalar<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::F;
-    fn random_element<R: RngCore + CryptoRng>(&self, rng: &mut R) -> Self::P;
+    fn random_scalar<R: RngCore>(&self, rng: &mut R) -> Self::F;
+    fn random_element<R: RngCore>(&self, rng: &mut R) -> Self::P;
 }
 
 /// Implement the [Group] trait by using group elements of type [BigUint](num_bigint::BigUint).
@@ -53,9 +53,9 @@ pub struct SchnorrGroup {
     // p is a large prime
     // q is a large prime divisor of p-1
     // a is a generator of the group of order q, i.e., a^q mod p = 1 by Fermat's Little Theorem.
-    p: BigUint,
-    q: BigUint,
-    a: BigUint,
+    p: UBig,
+    q: UBig,
+    a: UBig,
 }
 
 impl SchnorrGroup {
@@ -63,10 +63,12 @@ impl SchnorrGroup {
     /// and a is a generator of the group of order q. Return None if a is not a valid generator (i.e. a^q mod p != 1)
     pub(crate) fn from_str(p: &str, q: &str, a: &str) -> Option<Self> {
         // check if a is a valid generator
-        let p = BigUint::from_str(p).ok()?;
-        let q = BigUint::from_str(q).ok()?;
-        let a = BigUint::from_str(a).ok()?;
-        if a.modpow(&q, &p) != BigUint::from(1u32) {
+        let p = UBig::from_str(p).ok()?;
+        let q = UBig::from_str(q).ok()?;
+        let a = UBig::from_str(a).ok()?;
+        let modp = ConstDivisor::new(p.clone());
+
+        if modp.reduce(a.clone()).pow(&q) != modp.reduce(1) {
             return None;
         }
         Some(Self { p, q, a })
@@ -74,77 +76,87 @@ impl SchnorrGroup {
 }
 
 impl Group for SchnorrGroup {
-    type P = BigUint;
-    type F = BigUint;
+    type P = UBig;
+    type F = UBig;
     type DeserializeError = ();
 
     fn generator(&self) -> Self::P {
         self.a.clone()
     }
 
-    fn dot(&self, p1: &BigUint, p2: &BigUint) -> BigUint {
-        p1 * p2 % &self.p
+    fn dot(&self, p1: &UBig, p2: &UBig) -> UBig {
+        ConstDivisor::new(self.p.clone()).reduce(p1 * p2).residue()
     }
 
-    fn mul_by_generator(&self, scalar: &BigUint) -> BigUint {
-        self.a.modpow(scalar, &self.p)
+    fn mul_by_generator(&self, scalar: &UBig) -> UBig {
+        ConstDivisor::new(self.p.clone())
+            .reduce(self.a.clone())
+            .pow(scalar)
+            .residue()
     }
 
-    fn mul(&self, p: &BigUint, scalar: &BigUint) -> BigUint {
-        p.modpow(scalar, &self.p)
+    fn mul(&self, p: &UBig, scalar: &UBig) -> UBig {
+        ConstDivisor::new(self.p.clone())
+            .reduce(p.clone())
+            .pow(scalar)
+            .residue()
     }
 
-    fn add_mul_scalar(&self, s1: &BigUint, s2: &BigUint, s3: &BigUint) -> BigUint {
-        (s1 + s2 * s3) % &self.q
+    fn add_mul_scalar(&self, s1: &UBig, s2: &UBig, s3: &UBig) -> UBig {
+        ConstDivisor::new(self.q.clone())
+            .reduce(s1 + s2 * s3)
+            .residue()
     }
 
-    fn neg(&self, scalar: &BigUint) -> BigUint {
+    fn neg(&self, scalar: &UBig) -> UBig {
         &self.q - scalar
     }
 
-    fn is_equivalent_scalars(s1: &BigUint, s2: &BigUint) -> bool {
+    fn is_equivalent_scalars(s1: &UBig, s2: &UBig) -> bool {
         s1 == s2
     }
-    fn is_equivalent_points(p1: &BigUint, p2: &BigUint) -> bool {
+    fn is_equivalent_points(p1: &UBig, p2: &UBig) -> bool {
         p1 == p2
     }
 
-    fn map_point(point: &BigUint) -> Vec<u8> {
-        point.to_bytes_le()
+    fn map_point(point: &UBig) -> Vec<u8> {
+        point.to_le_bytes().to_vec()
     }
 
-    fn map_to_scalar(bytes: &[u8]) -> BigUint {
-        BigUint::from_bytes_le(bytes)
+    fn map_to_scalar(bytes: &[u8]) -> UBig {
+        UBig::from_le_bytes(bytes)
     }
 
-    fn serialize_scalar(scalar: &BigUint) -> Vec<u8> {
-        scalar.to_bytes_le()
+    fn serialize_scalar(scalar: &UBig) -> Vec<u8> {
+        scalar.to_le_bytes().to_vec()
     }
 
-    fn serialize_point(point: &BigUint) -> Vec<u8> {
-        point.to_bytes_le()
+    fn serialize_point(point: &UBig) -> Vec<u8> {
+        point.to_le_bytes().to_vec()
     }
 
-    fn deserialize_scalar(bytes: &[u8]) -> Result<BigUint, ()> {
+    fn deserialize_scalar(bytes: &[u8]) -> Result<UBig, ()> {
         if bytes.is_empty() {
             return Err(());
         }
-        Ok(BigUint::from_bytes_le(bytes))
+        Ok(UBig::from_le_bytes(bytes))
     }
 
-    fn deserialize_point(bytes: &[u8]) -> Result<BigUint, ()> {
+    fn deserialize_point(bytes: &[u8]) -> Result<UBig, ()> {
         if bytes.is_empty() {
             return Err(());
         }
-        Ok(BigUint::from_bytes_le(bytes))
+        Ok(UBig::from_le_bytes(bytes))
     }
 
-    fn random_scalar<R: RngCore>(&self, rng: &mut R) -> BigUint {
-        use num_bigint::RandBigInt;
-        rng.gen_biguint_range(&BigUint::from(1u32), &self.q)
+    fn random_scalar<R: RngCore>(&self, rng: &mut R) -> UBig {
+        let mut buf = self.q.to_le_bytes().to_vec();
+        rng.fill_bytes(&mut buf);
+        UBig::from_le_bytes(&buf) % &self.q
     }
-    fn random_element<R: RngCore>(&self, rng: &mut R) -> BigUint {
-        use num_bigint::RandBigInt;
-        rng.gen_biguint_range(&BigUint::from(1u32), &self.p)
+
+    fn random_element<R: RngCore>(&self, rng: &mut R) -> UBig {
+        let scalar = self.random_scalar(rng);
+        self.mul_by_generator(&scalar)
     }
 }

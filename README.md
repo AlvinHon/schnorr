@@ -7,8 +7,8 @@ This repository contains the rust implementation of various Schnorr protocols by
 
 It is a light-weight library that implements the protocol in simpliest way where minimal number of APIs are used, though the protocols are highly interactive.
 While there are some limitations for you to consider before using it:
-- Uses [num-bigint](https://crates.io/crates/num-bigint).
-- when using ECC-based protocol, the library picks the curve [p256](https://crates.io/crates/p256) (a.k.a `secp256r1`, `prime256v1`) to use.
+- Uses [dashu](https://crates.io/crates/dashu).
+- Uses a bare implementation of P256 curve which also depends on [dashu](https://crates.io/crates/dashu).
 
 Note: this repository has not been thoroughly audited. Please take your own risk if you use it in production environment.
 
@@ -57,7 +57,7 @@ let verifier = schnorr_rs::Verifier {
 };
 
 // An identity represented by BigUint.
-let i = num_bigint::BigUint::from(123u32);
+let i = dashu_int::UBig::from(123u32);
 
 // User interacts with issuer to get a certificate
 let (iss_secret, iss_params) = protocol.issue_params(rng, i.clone());

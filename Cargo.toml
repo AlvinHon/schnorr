@@ -14,12 +14,14 @@ resolver = "2"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+dashu-base = "0.4.1"
+dashu-int = {version="0.4.1", features=["rand", "serde"]}
 digest = "0.10.7"
-num-bigint = { version = "0.4.6", features = ["rand", "serde"] }
-p256 = { version = "0.13.2", features = ["serde"]}
+getrandom = {version = "0.2", features=["js"]}
+lazy_static = "=1.5.0"
 rand_core = "0.6"
 serde = { version = "1.0.219", features = ["derive"] }
-signature = "2.2.0"
+signature = {version="2.2.0", features=["digest", "rand_core"]}
 
 [features]
 default = []
@@ -27,8 +29,10 @@ default = []
 [dev-dependencies]
 bincode = { version="2", features=["serde"] }
 criterion = "0.6.0"
-sha2 = "0.10.9"
+p256 = { version = "0.13.2", features = ["serde"]}
 rand = "0.8"
+regex = "1.11.1"
+sha2 = "0.10.9"
 
 [[bench]]
 name = "bench"
