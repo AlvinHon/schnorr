@@ -57,7 +57,7 @@ let verifier = schnorr_rs::Verifier {
 };
 
 // An identity represented by BigUint.
-let i = dashu::integer::UBig::from(123u32);
+let i = dashu_int::UBig::from(123u32);
 
 // User interacts with issuer to get a certificate
 let (iss_secret, iss_params) = protocol.issue_params(rng, i.clone());
